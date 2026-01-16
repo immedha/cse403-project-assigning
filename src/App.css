@@ -1,0 +1,375 @@
+.app-container {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding: 0;
+}
+
+.app-header {
+  background: #fff;
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.file-input {
+  padding: 0.5rem 1rem;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.file-input:hover {
+  border-color: #646cff;
+}
+
+.main-layout {
+  display: flex;
+  height: calc(100vh - 80px);
+  gap: 0;
+}
+
+.left-panel {
+  flex: 1;
+  background: #fff;
+  overflow-y: auto;
+  padding: 1.5rem;
+  border-right: 2px solid #e0e0e0;
+}
+
+.right-panel {
+  flex: 1;
+  background: #fafafa;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.panel-section {
+  margin-bottom: 2rem;
+}
+
+.panel-section h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+  color: #333;
+  font-weight: 600;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.student-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 0.5rem;
+  background: #f9f9f9;
+  border-radius: 6px;
+}
+
+.student-card {
+  padding: 0.75rem;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  cursor: grab;
+  transition: all 0.2s;
+}
+
+.student-card:hover {
+  border-color: #646cff;
+  box-shadow: 0 2px 4px rgba(100, 108, 255, 0.1);
+  transform: translateY(-1px);
+}
+
+.student-card:active {
+  cursor: grabbing;
+}
+
+.student-name {
+  font-weight: 500;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.student-netid {
+  font-size: 0.75rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+.student-choices {
+  font-size: 0.7rem;
+  color: #888;
+  margin-top: 0.25rem;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.project-box {
+  background: #fff;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  padding: 0.75rem;
+  min-height: 150px;
+  transition: all 0.2s;
+}
+
+.project-box:hover {
+  border-color: #646cff;
+  box-shadow: 0 2px 8px rgba(100, 108, 255, 0.15);
+}
+
+.project-box.project-full {
+  background: #fff5f5;
+  border-color: #ff6b6b;
+}
+
+.project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.project-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-count {
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 500;
+  background: #f0f0f0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.project-students {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.project-student {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  background: #f9f9f9;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.project-student span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove-btn {
+  background: #ff6b6b;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-btn:hover {
+  background: #ff5252;
+}
+
+.empty-state {
+  text-align: center;
+  color: #999;
+  padding: 2rem;
+  font-style: italic;
+}
+
+.empty-state-small {
+  text-align: center;
+  color: #bbb;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.right-panel h3 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.2rem;
+  color: #333;
+  font-weight: 600;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.stats-table {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #ddd;
+  margin-bottom: 1.5rem;
+}
+
+.stats-header {
+  display: grid;
+  grid-template-columns: 2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr;
+  background: #f8f9fa;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #555;
+  border-bottom: 2px solid #ddd;
+}
+
+.stat-col {
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.project-col {
+  text-align: left;
+  font-weight: 600;
+}
+
+.total-col {
+  font-weight: 600;
+  background: #f0f0f0;
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: 2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr;
+  border-bottom: 1px solid #eee;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+
+.stats-row:hover {
+  background: #f9f9f9;
+}
+
+.stats-row.no-choices {
+  background: #fff5f5;
+  color: #999;
+}
+
+.stats-row.most-popular {
+  background: #e8f5e9;
+}
+
+.stats-row.most-popular .stat-col {
+  font-weight: 600;
+}
+
+.analysis-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.summary-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.summary-card h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0.5rem 0;
+}
+
+.summary-count {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0;
+}
+
+.unwanted-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.unwanted-tag {
+  background: #ffebee;
+  color: #c62828;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  border: 1px solid #ffcdd2;
+}
+
+.no-unwanted {
+  color: #4caf50;
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0 0;
+  font-style: italic;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
