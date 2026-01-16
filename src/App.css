@@ -21,6 +21,12 @@
   font-weight: 600;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .file-input {
   padding: 0.5rem 1rem;
   border: 2px solid #ddd;
@@ -33,6 +39,85 @@
 
 .file-input:hover {
   border-color: #646cff;
+}
+
+.save-btn,
+.clear-btn,
+.export-btn,
+.import-btn {
+  padding: 0.5rem 1rem;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: #fff;
+  transition: all 0.2s;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.save-btn {
+  background: #4caf50;
+  color: white;
+  border-color: #4caf50;
+}
+
+.save-btn:hover {
+  background: #45a049;
+  border-color: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+}
+
+.export-btn {
+  background: #2196f3;
+  color: white;
+  border-color: #2196f3;
+}
+
+.export-btn:hover {
+  background: #1976d2;
+  border-color: #1976d2;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.import-btn-label {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.import-btn {
+  display: inline-block;
+  background: #ff9800;
+  color: white;
+  border-color: #ff9800;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.import-btn:hover {
+  background: #f57c00;
+  border-color: #f57c00;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(255, 152, 0, 0.3);
+}
+
+.clear-btn {
+  background: #ff6b6b;
+  color: white;
+  border-color: #ff6b6b;
+}
+
+.clear-btn:hover {
+  background: #ff5252;
+  border-color: #ff5252;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(255, 107, 107, 0.3);
 }
 
 .main-layout {
@@ -53,7 +138,9 @@
   flex: 1;
   background: #fafafa;
   overflow-y: auto;
+  overflow-x: visible;
   padding: 1.5rem;
+  position: relative;
 }
 
 .panel-section {
@@ -67,6 +154,27 @@
   font-weight: 600;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid #e0e0e0;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+  background: #fff;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+}
+
+.search-input::placeholder {
+  color: #999;
 }
 
 .student-list {
@@ -87,6 +195,9 @@
   border-radius: 6px;
   cursor: grab;
   transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .student-card:hover {
@@ -97,6 +208,10 @@
 
 .student-card:active {
   cursor: grabbing;
+}
+
+.student-info {
+  flex: 1;
 }
 
 .student-name {
@@ -115,6 +230,29 @@
   font-size: 0.7rem;
   color: #888;
   margin-top: 0.25rem;
+  line-height: 1.3;
+}
+
+.project-select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.project-select:hover {
+  border-color: #646cff;
+}
+
+.project-select:focus {
+  outline: none;
+  border-color: #646cff;
+  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
 }
 
 .projects-grid {
@@ -130,6 +268,8 @@
   padding: 0.75rem;
   min-height: 150px;
   transition: all 0.2s;
+  position: relative;
+  overflow: visible;
 }
 
 .project-box:hover {
@@ -140,6 +280,12 @@
 .project-box.project-full {
   background: #fff5f5;
   border-color: #ff6b6b;
+}
+
+.project-box.project-overflow {
+  background: #ffe0e0;
+  border-color: #ff4444;
+  border-width: 3px;
 }
 
 .project-header {
@@ -169,6 +315,12 @@
   background: #f0f0f0;
   padding: 0.2rem 0.5rem;
   border-radius: 4px;
+}
+
+.project-count-overflow {
+  background: #ffebee;
+  color: #c62828;
+  font-weight: 600;
 }
 
 .project-students {
@@ -242,9 +394,10 @@
 .stats-table {
   background: #fff;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid #ddd;
   margin-bottom: 1.5rem;
+  position: relative;
 }
 
 .stats-header {
@@ -260,6 +413,17 @@
 .stat-col {
   padding: 0.75rem;
   text-align: center;
+  position: relative;
+  overflow: visible;
+}
+
+.stat-col-hoverable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.stat-col-hoverable:hover {
+  background: #f0f7ff;
 }
 
 .project-col {
@@ -278,6 +442,7 @@
   border-bottom: 1px solid #eee;
   font-size: 0.85rem;
   transition: background 0.2s;
+  position: relative;
 }
 
 .stats-row:hover {
@@ -372,4 +537,109 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* Tooltip styling */
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-width: 350px;
+  min-width: 200px;
+  white-space: normal;
+  word-wrap: break-word;
+  pointer-events: none;
+}
+
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #333;
+}
+
+.tooltip-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.tooltip-content {
+  color: #f0f0f0;
+  line-height: 1.5;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Student tooltip styling */
+.student-name-hoverable {
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.student-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  background: #333;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 250px;
+  max-width: 400px;
+  white-space: normal;
+  word-wrap: break-word;
+  pointer-events: none;
+}
+
+.student-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 20px;
+  border: 6px solid transparent;
+  border-top-color: #333;
+}
+
+.tooltip-detail {
+  margin-bottom: 0.5rem;
+  color: #f0f0f0;
+}
+
+.tooltip-detail strong {
+  color: #fff;
+  margin-right: 0.5rem;
+}
+
+.tooltip-choices {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #555;
+}
+
+.tooltip-choice-item {
+  margin-bottom: 0.25rem;
+  color: #f0f0f0;
+  font-size: 0.8rem;
+}
+
+.project-student {
+  position: relative;
 }
