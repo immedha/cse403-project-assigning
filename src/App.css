@@ -402,7 +402,6 @@
 
 .stats-header {
   display: grid;
-  grid-template-columns: 2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr;
   background: #f8f9fa;
   font-weight: 600;
   font-size: 0.85rem;
@@ -415,6 +414,37 @@
   text-align: center;
   position: relative;
   overflow: visible;
+}
+
+.choice-header-btn {
+  padding: 0.75rem;
+  text-align: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #555;
+  transition: all 0.2s;
+  font-family: inherit;
+  border-radius: 4px;
+  margin: 0;
+}
+
+.choice-header-btn:hover {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.choice-header-btn-selected {
+  background: #2196f3;
+  color: white;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.choice-header-btn-selected:hover {
+  background: #1976d2;
+  color: white;
 }
 
 .stat-col-hoverable {
@@ -438,7 +468,6 @@
 
 .stats-row {
   display: grid;
-  grid-template-columns: 2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr;
   border-bottom: 1px solid #eee;
   font-size: 0.85rem;
   transition: background 0.2s;

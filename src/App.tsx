@@ -18,17 +18,9 @@ type Group = {
 
 type ProjectStats = {
   project: string;
-  firstChoice: number;
-  secondChoice: number;
-  thirdChoice: number;
-  fourthChoice: number;
-  fifthChoice: number;
+  choiceCounts: Map<number, number>; // choice rank -> count
+  choiceStudents: Map<number, string[]>; // choice rank -> student names
   total: number;
-  firstChoiceStudents: string[];
-  secondChoiceStudents: string[];
-  thirdChoiceStudents: string[];
-  fourthChoiceStudents: string[];
-  fifthChoiceStudents: string[];
 };
 
 export default function App() {
@@ -42,6 +34,7 @@ export default function App() {
     students: string[];
   } | null>(null);
   const [hoveredStudent, setHoveredStudent] = useState<Student | null>(null);
+  const [totalUpToRank, setTotalUpToRank] = useState<number | null>(null); // null means all ranks
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -291,14 +284,43 @@ export default function App() {
 
     const rows = parsed.data as any[];
 
+    // Dynamically find all choice columns
+    const choiceColumns: string[] = [];
+    if (rows.length > 0) {
+      const headers = Object.keys(rows[0]);
+      // Look for columns matching choice patterns
+      headers.forEach((header) => {
+        const lowerHeader = header.toLowerCase();
+        if (
+          lowerHeader.includes("choice") &&
+          (lowerHeader.includes("first") ||
+            lowerHeader.includes("second") ||
+            lowerHeader.includes("third") ||
+            lowerHeader.includes("fourth") ||
+            lowerHeader.includes("fifth") ||
+            lowerHeader.includes("sixth") ||
+            lowerHeader.includes("seventh") ||
+            lowerHeader.includes("eighth") ||
+            lowerHeader.includes("ninth") ||
+            lowerHeader.includes("tenth") ||
+            /^\d+/.test(lowerHeader))
+        ) {
+          choiceColumns.push(header);
+        }
+      });
+      // Sort by the number in the header
+      choiceColumns.sort((a, b) => {
+        const numA = parseInt(a.match(/\d+/)?.[0] || "0");
+        const numB = parseInt(b.match(/\d+/)?.[0] || "0");
+        return numA - numB;
+      });
+    }
+
     const newStudents: Student[] = rows.map((row, idx) => {
-      const choices = [
-        row["First (1) Choice"],
-        row["Second (2)  Choice"],
-        row["Third (3) Choice"],
-        row["Fourth (4) Choice"],
-        row["Fifth (5) Choice"],
-      ].filter(Boolean);
+      const choices = choiceColumns
+        .map((col) => row[col])
+        .filter(Boolean)
+        .filter((choice) => choice && choice.trim() !== "");
 
       return {
         id: String(idx),
@@ -365,49 +387,36 @@ export default function App() {
   const projectStats = useMemo(() => {
     const statsMap = new Map<string, ProjectStats>();
 
+    // Get assigned student IDs to exclude them from statistics
+    const assignedStudentIds = new Set(groups.flatMap((g) => g.students));
+
     // Initialize all projects
     groups.forEach((g) => {
       statsMap.set(g.project, {
         project: g.project,
-        firstChoice: 0,
-        secondChoice: 0,
-        thirdChoice: 0,
-        fourthChoice: 0,
-        fifthChoice: 0,
+        choiceCounts: new Map<number, number>(),
+        choiceStudents: new Map<number, string[]>(),
         total: 0,
-        firstChoiceStudents: [],
-        secondChoiceStudents: [],
-        thirdChoiceStudents: [],
-        fourthChoiceStudents: [],
-        fifthChoiceStudents: [],
       });
     });
 
-    // Count choices and collect student names
-    students.forEach((student) => {
-      student.choices.forEach((choice, index) => {
-        const stats = statsMap.get(choice);
-        if (stats) {
-          if (index === 0) {
-            stats.firstChoice++;
-            stats.firstChoiceStudents.push(student.name);
-          } else if (index === 1) {
-            stats.secondChoice++;
-            stats.secondChoiceStudents.push(student.name);
-          } else if (index === 2) {
-            stats.thirdChoice++;
-            stats.thirdChoiceStudents.push(student.name);
-          } else if (index === 3) {
-            stats.fourthChoice++;
-            stats.fourthChoiceStudents.push(student.name);
-          } else if (index === 4) {
-            stats.fifthChoice++;
-            stats.fifthChoiceStudents.push(student.name);
+    // Count choices and collect student names (only for unassigned students)
+    students
+      .filter((student) => !assignedStudentIds.has(student.id))
+      .forEach((student) => {
+        student.choices.forEach((choice, index) => {
+          const stats = statsMap.get(choice);
+          if (stats) {
+            const rank = index + 1; // 1-based ranking
+            const currentCount = stats.choiceCounts.get(rank) || 0;
+            const currentStudents = stats.choiceStudents.get(rank) || [];
+            
+            stats.choiceCounts.set(rank, currentCount + 1);
+            stats.choiceStudents.set(rank, [...currentStudents, student.name]);
+            stats.total++;
           }
-          stats.total++;
-        }
+        });
       });
-    });
 
     return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
   }, [students, groups]);
@@ -636,143 +645,123 @@ export default function App() {
           ) : (
             <div className="analysis-content">
               <div className="stats-table">
-                <div className="stats-header">
-                  <div className="stat-col project-col">Project</div>
-                  <div className="stat-col">1st</div>
-                  <div className="stat-col">2nd</div>
-                  <div className="stat-col">3rd</div>
-                  <div className="stat-col">4th</div>
-                  <div className="stat-col">5th</div>
-                  <div className="stat-col total-col">Total</div>
-                </div>
-                {projectStats.map((stat) => (
-                  <div
-                    key={stat.project}
-                    className={`stats-row ${stat.total === 0 ? "no-choices" : ""} ${
-                      stat.firstChoice === Math.max(...projectStats.map((s) => s.firstChoice))
-                        ? "most-popular"
-                        : ""
-                    }`}
-                  >
-                    <div className="stat-col project-col">{stat.project}</div>
-                    <div
-                      className="stat-col stat-col-hoverable"
-                      onMouseEnter={() =>
-                        setHoveredTooltip({
-                          project: stat.project,
-                          choice: 1,
-                          students: stat.firstChoiceStudents,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredTooltip(null)}
-                    >
-                      {stat.firstChoice}
-                      {hoveredTooltip?.project === stat.project &&
-                        hoveredTooltip?.choice === 1 && (
-                          <div className="tooltip">
-                            <div className="tooltip-content">
-                              {stat.firstChoiceStudents.length > 0
-                                ? stat.firstChoiceStudents.join(", ")
-                                : "None"}
+                {(() => {
+                  // Calculate max number of choices across all students
+                  const maxChoices = Math.max(...students.map((s) => s.choices.length), 0);
+                  const choiceRanks = Array.from({ length: maxChoices }, (_, i) => i + 1);
+                  
+                  const getOrdinal = (n: number) => {
+                    const s = ["th", "st", "nd", "rd"];
+                    const v = n % 100;
+                    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+                  };
+
+                  // Calculate displayed total for each stat and sort
+                  const sortedStats = [...projectStats].sort((a, b) => {
+                    const totalA = totalUpToRank
+                      ? Array.from({ length: totalUpToRank }, (_, i) => i + 1).reduce(
+                          (sum, rank) => sum + (a.choiceCounts.get(rank) || 0),
+                          0
+                        )
+                      : a.total;
+                    const totalB = totalUpToRank
+                      ? Array.from({ length: totalUpToRank }, (_, i) => i + 1).reduce(
+                          (sum, rank) => sum + (b.choiceCounts.get(rank) || 0),
+                          0
+                        )
+                      : b.total;
+                    return totalB - totalA; // Sort greatest to least
+                  });
+
+                  return (
+                    <>
+                      <div
+                        className="stats-header"
+                        style={{
+                          gridTemplateColumns: `2fr repeat(${maxChoices}, 0.8fr) 1fr`,
+                        }}
+                      >
+                        <div className="stat-col project-col">Project</div>
+                        {choiceRanks.map((rank) => (
+                          <button
+                            key={rank}
+                            className={`stat-col choice-header-btn ${
+                              totalUpToRank === rank ? "choice-header-btn-selected" : ""
+                            }`}
+                            onClick={() => setTotalUpToRank(totalUpToRank === rank ? null : rank)}
+                            title={`Click to sum total up to ${getOrdinal(rank)} choice`}
+                          >
+                            {getOrdinal(rank)}
+                          </button>
+                        ))}
+                        <div className="stat-col total-col">
+                          Total{totalUpToRank ? ` (up to ${getOrdinal(totalUpToRank)})` : ""}
+                        </div>
+                      </div>
+                      {sortedStats.map((stat) => {
+                        const firstChoiceCount = stat.choiceCounts.get(1) || 0;
+                        const maxFirstChoice = Math.max(
+                          ...projectStats.map((s) => s.choiceCounts.get(1) || 0),
+                          0
+                        );
+                        return (
+                          <div
+                            key={stat.project}
+                            className={`stats-row ${stat.total === 0 ? "no-choices" : ""} ${
+                              firstChoiceCount === maxFirstChoice && maxFirstChoice > 0
+                                ? "most-popular"
+                                : ""
+                            }`}
+                            style={{
+                              gridTemplateColumns: `2fr repeat(${maxChoices}, 0.8fr) 1fr`,
+                            }}
+                          >
+                            <div className="stat-col project-col">{stat.project}</div>
+                            {choiceRanks.map((rank) => {
+                              const count = stat.choiceCounts.get(rank) || 0;
+                              const students = stat.choiceStudents.get(rank) || [];
+                              return (
+                                <div
+                                  key={rank}
+                                  className="stat-col stat-col-hoverable"
+                                  onMouseEnter={() =>
+                                    setHoveredTooltip({
+                                      project: stat.project,
+                                      choice: rank,
+                                      students,
+                                    })
+                                  }
+                                  onMouseLeave={() => setHoveredTooltip(null)}
+                                >
+                                  {count}
+                                  {hoveredTooltip?.project === stat.project &&
+                                    hoveredTooltip?.choice === rank && (
+                                      <div className="tooltip">
+                                        <div className="tooltip-title">
+                                          {getOrdinal(rank)} Choice Students:
+                                        </div>
+                                        <div className="tooltip-content">
+                                          {students.length > 0 ? students.join(", ") : "None"}
+                                        </div>
+                                      </div>
+                                    )}
+                                </div>
+                              );
+                            })}
+                            <div className="stat-col total-col">
+                              {totalUpToRank
+                                ? Array.from({ length: totalUpToRank }, (_, i) => i + 1).reduce(
+                                    (sum, rank) => sum + (stat.choiceCounts.get(rank) || 0),
+                                    0
+                                  )
+                                : stat.total}
                             </div>
                           </div>
-                        )}
-                    </div>
-                    <div
-                      className="stat-col stat-col-hoverable"
-                      onMouseEnter={() =>
-                        setHoveredTooltip({
-                          project: stat.project,
-                          choice: 2,
-                          students: stat.secondChoiceStudents,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredTooltip(null)}
-                    >
-                      {stat.secondChoice}
-                      {hoveredTooltip?.project === stat.project &&
-                        hoveredTooltip?.choice === 2 && (
-                          <div className="tooltip">
-                            <div className="tooltip-content">
-                              {stat.secondChoiceStudents.length > 0
-                                ? stat.secondChoiceStudents.join(", ")
-                                : "None"}
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                    <div
-                      className="stat-col stat-col-hoverable"
-                      onMouseEnter={() =>
-                        setHoveredTooltip({
-                          project: stat.project,
-                          choice: 3,
-                          students: stat.thirdChoiceStudents,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredTooltip(null)}
-                    >
-                      {stat.thirdChoice}
-                      {hoveredTooltip?.project === stat.project &&
-                        hoveredTooltip?.choice === 3 && (
-                          <div className="tooltip">
-                            <div className="tooltip-content">
-                              {stat.thirdChoiceStudents.length > 0
-                                ? stat.thirdChoiceStudents.join(", ")
-                                : "None"}
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                    <div
-                      className="stat-col stat-col-hoverable"
-                      onMouseEnter={() =>
-                        setHoveredTooltip({
-                          project: stat.project,
-                          choice: 4,
-                          students: stat.fourthChoiceStudents,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredTooltip(null)}
-                    >
-                      {stat.fourthChoice}
-                      {hoveredTooltip?.project === stat.project &&
-                        hoveredTooltip?.choice === 4 && (
-                          <div className="tooltip">
-                            <div className="tooltip-content">
-                              {stat.fourthChoiceStudents.length > 0
-                                ? stat.fourthChoiceStudents.join(", ")
-                                : "None"}
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                    <div
-                      className="stat-col stat-col-hoverable"
-                      onMouseEnter={() =>
-                        setHoveredTooltip({
-                          project: stat.project,
-                          choice: 5,
-                          students: stat.fifthChoiceStudents,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredTooltip(null)}
-                    >
-                      {stat.fifthChoice}
-                      {hoveredTooltip?.project === stat.project &&
-                        hoveredTooltip?.choice === 5 && (
-                          <div className="tooltip">
-                            <div className="tooltip-content">
-                              {stat.fifthChoiceStudents.length > 0
-                                ? stat.fifthChoiceStudents.join(", ")
-                                : "None"}
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                    <div className="stat-col total-col">{stat.total}</div>
-                  </div>
-                ))}
+                        );
+                      })}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="analysis-summary">
@@ -780,16 +769,26 @@ export default function App() {
                   <h4>Most Popular (1st Choice)</h4>
                   <p className="summary-value">
                     {projectStats.length > 0
-                      ? projectStats
-                          .filter((s) => s.firstChoice > 0)
-                          .sort((a, b) => b.firstChoice - a.firstChoice)[0]?.project || "N/A"
+                      ? (() => {
+                          const firstChoiceStats = projectStats
+                            .map((s) => ({
+                              project: s.project,
+                              count: s.choiceCounts.get(1) || 0,
+                            }))
+                            .filter((s) => s.count > 0)
+                            .sort((a, b) => b.count - a.count);
+                          return firstChoiceStats[0]?.project || "N/A";
+                        })()
                       : "N/A"}
                   </p>
                   <p className="summary-count">
                     {projectStats.length > 0
-                      ? Math.max(...projectStats.map((s) => s.firstChoice))
+                      ? Math.max(...projectStats.map((s) => s.choiceCounts.get(1) || 0))
                       : 0}{" "}
-                    first choice{Math.max(...projectStats.map((s) => s.firstChoice)) !== 1 ? "s" : ""}
+                    first choice
+                    {Math.max(...projectStats.map((s) => s.choiceCounts.get(1) || 0)) !== 1
+                      ? "s"
+                      : ""}
                   </p>
                 </div>
 
