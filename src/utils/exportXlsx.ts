@@ -1,5 +1,4 @@
 import type { StudentLike } from "./autoAssign";
-git
 type ExportStudent = StudentLike & { teammateIds?: string[] };
 
 export function buildRoundTripExport(params: {
