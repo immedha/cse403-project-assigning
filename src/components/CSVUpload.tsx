@@ -214,7 +214,7 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
           <div className="upload-info-title">CSV Format</div>
           <div className="upload-info-content">
             <div><strong>Required Columns:</strong> Name, Id, Choice 1, Choice 2, ...</div>
-            <div><strong>Optional Column:</strong> Assigned Project (initializes students' assignments with this project, skips custom auto-fill algorithm)</div>
+            <div><strong>Optional Column:</strong> Assigned Project (does initial project assignments, skips auto-fill algorithm)</div>
             <div className="upload-info-note">Columns can be in any order</div>
             <div className="upload-info-example">
               <div>Example:</div>

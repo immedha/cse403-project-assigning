@@ -5,22 +5,14 @@ interface TooltipProps {
   element: HTMLElement;
   students: string[];
   project: string;
-  choice?: number;
   onAddAll?: (project: string, studentNames: string[]) => void;
   onClose?: () => void;
 }
-
-const getOrdinal = (n: number) => {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-};
 
 export default function Tooltip({
   element,
   students,
   project,
-  choice,
   onAddAll,
   onClose,
 }: TooltipProps) {
@@ -96,18 +88,13 @@ export default function Tooltip({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {choice !== undefined && (
-        <div className="tooltip-title">
-          {getOrdinal(choice)} Choice Students:
-        </div>
-      )}
       <div className="tooltip-content">
         {students.length > 0 ? students.join(", ") : "None"}
       </div>
       <div className="tooltip-actions">
         {students.length > 0 && onAddAll && (
           <button className="tooltip-add-all-btn" onClick={handleAddAll}>
-            Add All
+            Assign All
           </button>
         )}
       </div>

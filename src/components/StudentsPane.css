@@ -23,6 +23,31 @@
   transition: all 0.15s ease;
 }
 
+.student-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.student-assign-select {
+  width: 140px;
+  max-width: 45%;
+  font-size: 0.75rem;
+  padding: 0.05rem 0.2rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.student-assign-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 .student-item.assigned {
   background: #f9fafb;
   opacity: 0.6;

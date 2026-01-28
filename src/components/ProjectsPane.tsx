@@ -88,7 +88,7 @@ export default function ProjectsPane({
   return (
     <div className="projects-pane">
       <p className="projects-hint">
-        <em>Right-click a student to see their detailed rankings.</em>
+        <em>Click on a student to see their detailed rankings.</em>
       </p>
       <div className="projects-grid">
         {filteredProjects.length === 0 ? (
@@ -130,8 +130,7 @@ export default function ProjectsPane({
                         key={student.id}
                         className="project-student"
                         draggable
-                        onContextMenu={(e) => {
-                          e.preventDefault();
+                        onClick={(e) => {
                           setStudentTooltip({
                             x: e.clientX,
                             y: e.clientY,
@@ -158,7 +157,10 @@ export default function ProjectsPane({
                         </div>
                         <button
                           className="remove-student-btn"
-                          onClick={() => onStudentRemove(student.id, project)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onStudentRemove(student.id, project);
+                          }}
                           title="Remove from project"
                         >
                           ×

@@ -193,7 +193,6 @@ export default function AnalysisPane({
             element={hoveredTooltip.element}
             students={hoveredTooltip.students}
             project={hoveredTooltip.project}
-            choice={hoveredTooltip.choice}
             onAddAll={onAddStudentsToProject}
             onClose={() => setHoveredTooltip(null)}
           />
@@ -203,7 +202,7 @@ export default function AnalysisPane({
         Number of (unassigned) students who ranked each project as 1st, 2nd, 3rd, etc.
       </div>
       <div className="analysis-hint">
-        <em>Right-click a value in the table to see the students.</em>
+        <em>Click on a value in the table to see all the students who gave that ranking for that project.</em>
       </div>
       <div className="stats-table-wrapper">
         <div className="stats-table">
@@ -264,8 +263,16 @@ export default function AnalysisPane({
                   <div
                     key={rank}
                     className="stat-col stat-col-hoverable"
-                    onContextMenu={(e) => {
-                      e.preventDefault();
+                    onClick={(e) => {
+                      // toggle if clicking same cell again
+                      if (
+                        hoveredTooltip?.element === e.currentTarget &&
+                        hoveredTooltip.project === stat.project &&
+                        hoveredTooltip.choice === rank
+                      ) {
+                        setHoveredTooltip(null);
+                        return;
+                      }
                       setHoveredTooltip({
                         project: stat.project,
                         choice: rank,

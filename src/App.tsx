@@ -137,43 +137,57 @@ export default function MainApp() {
     return assigned;
   }, [projectAssignments]);
 
-  const handleStudentDrop = (studentId: string, projectName: string) => {
+  const findStudentProject = (assignments: Record<string, string[]>, studentId: string) => {
+    for (const [project, ids] of Object.entries(assignments)) {
+      if ((ids || []).includes(studentId)) return project;
+    }
+    return null;
+  };
+
+  const handleAssignStudent = (studentId: string, toProject: string | null) => {
     setProjectAssignments((prev) => {
       const newAssignments = { ...prev };
+      const fromProject = findStudentProject(newAssignments, studentId);
 
-      // Find previous project (if any)
-      let fromProject: string | null = null;
+      // No-op
+      if (fromProject === toProject) return prev;
+
+      // If assigning to a project, ensure capacity BEFORE removing from old project
+      if (toProject) {
+        const current = newAssignments[toProject] || [];
+        const wouldCount = current.includes(studentId) ? current.length : current.length + 1;
+        if (wouldCount > maxProjectSize) {
+          return prev;
+        }
+      }
+
       // Remove student from any existing project
       Object.keys(newAssignments).forEach((project) => {
-        const ids = newAssignments[project] || [];
-        if (ids.includes(studentId)) {
-          fromProject = project;
-          newAssignments[project] = ids.filter((id) => id !== studentId);
-        }
+        newAssignments[project] = (newAssignments[project] || []).filter((id) => id !== studentId);
       });
 
-      // Add to new project (only if not over capacity)
-      const currentCount = (newAssignments[projectName] || []).length;
-      if (currentCount < maxProjectSize) {
-        if (!newAssignments[projectName]) {
-          newAssignments[projectName] = [];
-        }
-        newAssignments[projectName] = [...newAssignments[projectName], studentId];
+      // Add to new project if not unassigning
+      if (toProject) {
+        newAssignments[toProject] = [...(newAssignments[toProject] || []), studentId];
+      }
 
-        if (assignmentToastsEnabled) {
-          const student = students.find((s) => s.id === studentId);
-          setLastAssignmentChange({
-            studentIds: [studentId],
-            studentNames: [student?.name ?? "Student"],
-            fromProject,
-            toProject: projectName,
-          });
-          setToastVisible(true);
-        }
+      if (assignmentToastsEnabled) {
+        const student = students.find((s) => s.id === studentId);
+        setLastAssignmentChange({
+          studentIds: [studentId],
+          studentNames: [student?.name ?? "Student"],
+          fromProject,
+          toProject,
+        });
+        setToastVisible(true);
       }
 
       return newAssignments;
     });
+  };
+
+  const handleStudentDrop = (studentId: string, projectName: string) => {
+    handleAssignStudent(studentId, projectName);
   };
 
   const handleStudentRemove = (studentId: string, projectName: string) => {
@@ -412,7 +426,9 @@ export default function MainApp() {
           students={students}
           assignedStudentIds={assignedStudentIds}
           projectAssignments={projectAssignments}
+          projects={projects}
           onDragStart={handleDragStart}
+          onAssignStudent={handleAssignStudent}
           onUnassignedCountChange={setUnassignedCount}
           searchQuery={studentsSearchQuery}
         />

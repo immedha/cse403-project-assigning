@@ -11,7 +11,9 @@ interface StudentsPaneProps {
   students: Student[];
   assignedStudentIds: Set<string>;
   projectAssignments: Record<string, string[]>; // project name -> array of student IDs
+  projects: string[];
   onDragStart: () => void;
+  onAssignStudent: (studentId: string, projectName: string | null) => void;
   onUnassignedCountChange?: (count: number) => void;
   searchQuery: string;
 }
@@ -20,7 +22,9 @@ export default function StudentsPane({
   students,
   assignedStudentIds,
   projectAssignments,
+  projects,
   onDragStart,
+  onAssignStudent,
   onUnassignedCountChange,
   searchQuery,
 }: StudentsPaneProps) {
@@ -89,10 +93,26 @@ export default function StudentsPane({
                 e.dataTransfer.setData("text/plain", student.id);
               }}
             >
-              <div className="student-name">{student.name}</div>
-              {isAssigned && assignedProject && (
-                <div className="student-assigned">{assignedProject}</div>
-              )}
+              <div className="student-top-row">
+                <div className="student-name">{student.name}</div>
+                <select
+                  className="student-assign-select"
+                  value={assignedProject ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    onAssignStudent(student.id, v ? v : null);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Assign student to project"
+                >
+                  <option value="">Unassigned</option>
+                  {[...projects].sort((a, b) => a.localeCompare(b)).map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {student.choices.length > 0 && (
                 <div className="student-preferences">
                   {student.choices.map((choice, idx) => (
