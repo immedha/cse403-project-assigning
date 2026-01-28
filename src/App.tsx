@@ -8,6 +8,7 @@ import AnalysisPane from "./components/AnalysisPane";
 import { Download, Settings, X, RotateCcw } from "lucide-react";
 import { autoAssign, type AutoFillMode } from "./utils/autoAssign";
 import { buildRoundTripExport } from "./utils/exportXlsx";
+import { computeTeamsFromCsvStudents } from "./utils/teams";
 import "./components/Layout/MainApp.css";
 import "./components/AnalysisPane.css";
 
@@ -15,6 +16,7 @@ export type Student = {
   id: string;
   name: string;
   choices: string[];
+  teammateIds?: string[];
 };
 
 const STORAGE_KEY = "group-maker:v1";
@@ -28,6 +30,7 @@ type PersistedState = {
   studentsSearchQuery: string;
   projectsSearchQuery: string;
   assignmentToastsEnabled: boolean;
+  enforceMutualTeams: boolean;
 };
 
 function safeParsePersistedState(raw: string | null): PersistedState | null {
@@ -42,6 +45,7 @@ function safeParsePersistedState(raw: string | null): PersistedState | null {
     if (typeof data.studentsSearchQuery !== "string") return null;
     if (typeof data.projectsSearchQuery !== "string") return null;
     if (typeof data.assignmentToastsEnabled !== "boolean") return null;
+    if (typeof data.enforceMutualTeams !== "boolean") return null;
     return data as PersistedState;
   } catch {
     return null;
@@ -70,6 +74,66 @@ function normalizeAssignments(
   return next;
 }
 
+function enforceTeamsInAssignments(params: {
+  assignments: Record<string, string[]>;
+  teamMembersByStudentId: Map<string, string[]>;
+  capacity: number;
+}): Record<string, string[]> {
+  const { assignments, teamMembersByStudentId, capacity } = params;
+  const next: Record<string, string[]> = {};
+  Object.keys(assignments).forEach((p) => (next[p] = [...(assignments[p] || [])]));
+
+  const processedTeams = new Set<string>();
+  const allStudents = new Set<string>();
+  Object.values(next).forEach((ids) => ids.forEach((id) => allStudents.add(id)));
+
+  const findProjectOf = (id: string) => {
+    for (const [p, ids] of Object.entries(next)) {
+      if (ids.includes(id)) return p;
+    }
+    return null;
+  };
+
+  for (const id of allStudents) {
+    const team = teamMembersByStudentId.get(id);
+    if (!team || team.length < 2) continue;
+    const teamKey = team.join("|");
+    if (processedTeams.has(teamKey)) continue;
+    processedTeams.add(teamKey);
+
+    // Pick a target project: first project any member is currently assigned to
+    let target: string | null = null;
+    for (const m of team) {
+      const p = findProjectOf(m);
+      if (p) {
+        target = p;
+        break;
+      }
+    }
+    if (!target) continue;
+
+    // Compute available space in target excluding team members already there
+    const cur = next[target] || [];
+    const teamSet = new Set(team);
+    const withoutTeam = cur.filter((x) => !teamSet.has(x));
+    if (withoutTeam.length + team.length > capacity) {
+      // Can't keep team together here -> unassign whole team
+      for (const p of Object.keys(next)) {
+        next[p] = next[p].filter((x) => !teamSet.has(x));
+      }
+      continue;
+    }
+
+    // Remove team from all projects, then assign all to target
+    for (const p of Object.keys(next)) {
+      next[p] = next[p].filter((x) => !teamSet.has(x));
+    }
+    next[target] = [...withoutTeam, ...team];
+  }
+
+  return next;
+}
+
 export default function MainApp() {
   const loaded = safeParsePersistedState(localStorage.getItem(STORAGE_KEY));
 
@@ -90,6 +154,9 @@ export default function MainApp() {
   const [assignmentToastsEnabled, setAssignmentToastsEnabled] = useState(
     loaded?.assignmentToastsEnabled ?? true
   );
+  const [enforceMutualTeams, setEnforceMutualTeams] = useState(
+    loaded?.enforceMutualTeams ?? false
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [lastAssignmentChange, setLastAssignmentChange] = useState<{
@@ -100,6 +167,66 @@ export default function MainApp() {
   } | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  const teamsInfo = useMemo(() => {
+    const studentById = new Map(students.map((s) => [s.id, s]));
+    const rankingKey = (s: Student) => s.choices.join("\u0001");
+
+    const { teams: enforceableTeams, unenforceableByStudentId } = computeTeamsFromCsvStudents({
+      students: students.map((s) => ({
+        id: s.id,
+        // Ensure teammate columns are treated as an unordered set.
+        teammateIds: Array.from(new Set((s.teammateIds ?? []).map((x) => String(x).trim()))).sort((a, b) =>
+          a.localeCompare(b)
+        ),
+      })),
+    });
+
+    const teamMembersByStudentId = new Map<string, string[]>();
+    const teamIndexByStudentId = new Map<string, number>();
+    const teams: Array<{ memberIds: string[]; rankingKey: string }> = [];
+    enforceableTeams.forEach((t) => {
+      const memberIds = [...t.memberIds].sort();
+      const key = rankingKey(studentById.get(memberIds[0])!);
+      const idx = teams.length;
+      teams.push({ memberIds, rankingKey: key });
+      memberIds.forEach((id) => teamMembersByStudentId.set(id, memberIds));
+      memberIds.forEach((id) => teamIndexByStudentId.set(id, idx));
+    });
+
+    const teamStyleByIndex = (idx: number) => {
+      // Avoid red/yellow/green hues to reduce confusion with satisfaction badges.
+      // Also ensure we can generate lots of unique colors (20+ teams) deterministically.
+      const forbidden: Array<[number, number]> = [
+        [0, 16], // reds
+        [340, 360], // reds
+        [35, 72], // yellows / amber
+        [95, 155], // greens
+      ];
+      const isForbidden = (h: number) =>
+        forbidden.some(([a, b]) => (a <= b ? h >= a && h <= b : h >= a || h <= b));
+
+      let hue = (idx * 137.508) % 360; // golden-angle spacing
+      // Nudge hue out of forbidden zones (bounded loop; will exit quickly).
+      for (let tries = 0; tries < 12 && isForbidden(hue); tries++) {
+        hue = (hue + 43) % 360;
+      }
+      return {
+        backgroundColor: `hsl(${hue} 78% 92%)`,
+        borderColor: `hsl(${hue} 55% 68%)`,
+        color: `hsl(${hue} 40% 26%)`,
+      };
+    };
+
+    return {
+      studentById,
+      teams,
+      teamMembersByStudentId,
+      teamIndexByStudentId,
+      unenforceableByStudentId,
+      teamStyleByIndex,
+    };
+  }, [students]);
 
   const handleCSVUpload = (data: {
     students: Student[];
@@ -116,15 +243,79 @@ export default function MainApp() {
       return;
     }
 
-    setProjectAssignments(
-      autoAssign({
-        mode: autoFillMode,
-        students: data.students,
-        projects: data.projects,
-        capacity: Math.max(1, maxProjectSize),
-        seed: 1,
-      })
-    );
+    const base = autoAssign({
+      mode: autoFillMode,
+      students: data.students,
+      projects: data.projects,
+      capacity: Math.max(1, maxProjectSize),
+      seed: 1,
+    });
+
+    const enforced = enforceMutualTeams
+      ? enforceTeamsInAssignments({
+          assignments: base,
+          teamMembersByStudentId: new Map(
+            // rebuild team mapping for freshly uploaded students
+            (() => {
+              const tempById = new Map(data.students.map((s) => [s.id, s]));
+              const rankingKey = (s: Student) => s.choices.join("\u0001");
+              const requested = new Map<string, string[]>(
+                data.students.map((s) => [
+                  s.id,
+                  Array.from(new Set((s.teammateIds ?? []).filter(Boolean))).sort((a, b) =>
+                    String(a).localeCompare(String(b))
+                  ),
+                ])
+              );
+              const adj = new Map<string, Set<string>>();
+              const addEdge = (a: string, b: string) => {
+                if (!adj.has(a)) adj.set(a, new Set());
+                if (!adj.has(b)) adj.set(b, new Set());
+                adj.get(a)!.add(b);
+                adj.get(b)!.add(a);
+              };
+              for (const s of data.students) {
+                for (const tId of requested.get(s.id) ?? []) {
+                  const t = tempById.get(tId);
+                  if (!t) continue;
+                  const mutual = (requested.get(tId) ?? []).includes(s.id);
+                  if (!mutual) continue;
+                  if (rankingKey(s) !== rankingKey(t)) continue;
+                  addEdge(s.id, tId);
+                }
+              }
+              const visited = new Set<string>();
+              const map = new Map<string, string[]>();
+              for (const s of data.students) {
+                if (visited.has(s.id)) continue;
+                const neigh = adj.get(s.id);
+                if (!neigh || neigh.size === 0) continue;
+                const stack = [s.id];
+                const comp: string[] = [];
+                visited.add(s.id);
+                while (stack.length) {
+                  const cur = stack.pop()!;
+                  comp.push(cur);
+                  for (const n of adj.get(cur) ?? []) {
+                    if (!visited.has(n)) {
+                      visited.add(n);
+                      stack.push(n);
+                    }
+                  }
+                }
+                if (comp.length >= 2) {
+                  comp.sort();
+                  comp.forEach((id) => map.set(id, comp));
+                }
+              }
+              return map;
+            })()
+          ),
+          capacity: Math.max(1, maxProjectSize),
+        })
+      : base;
+
+    setProjectAssignments(enforced);
     setLastAssignmentChange(null);
     setToastVisible(false);
   };
@@ -147,6 +338,7 @@ export default function MainApp() {
   const handleAssignStudent = (studentId: string, toProject: string | null) => {
     setProjectAssignments((prev) => {
       const newAssignments = { ...prev };
+      const studentIds = [studentId];
       const fromProject = findStudentProject(newAssignments, studentId);
 
       // No-op
@@ -155,8 +347,9 @@ export default function MainApp() {
       // If assigning to a project, ensure capacity BEFORE removing from old project
       if (toProject) {
         const current = newAssignments[toProject] || [];
-        const wouldCount = current.includes(studentId) ? current.length : current.length + 1;
-        if (wouldCount > maxProjectSize) {
+        const set = new Set(current);
+        const addCount = studentIds.filter((id) => !set.has(id)).length;
+        if (current.length + addCount > maxProjectSize) {
           return prev;
         }
       }
@@ -168,14 +361,16 @@ export default function MainApp() {
 
       // Add to new project if not unassigning
       if (toProject) {
-        newAssignments[toProject] = [...(newAssignments[toProject] || []), studentId];
+        const cur = new Set(newAssignments[toProject] || []);
+        studentIds.forEach((id) => cur.add(id));
+        newAssignments[toProject] = Array.from(cur);
       }
 
       if (assignmentToastsEnabled) {
-        const student = students.find((s) => s.id === studentId);
+        const names = studentIds.map((id) => students.find((s) => s.id === id)?.name ?? "Student");
         setLastAssignmentChange({
-          studentIds: [studentId],
-          studentNames: [student?.name ?? "Student"],
+          studentIds,
+          studentNames: names,
           fromProject,
           toProject,
         });
@@ -279,6 +474,7 @@ export default function MainApp() {
         studentsSearchQuery,
         projectsSearchQuery,
         assignmentToastsEnabled,
+        enforceMutualTeams,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     }, 750);
@@ -293,6 +489,7 @@ export default function MainApp() {
     studentsSearchQuery,
     projectsSearchQuery,
     assignmentToastsEnabled,
+    enforceMutualTeams,
   ]);
 
   const handleClearSavedData = () => {
@@ -305,6 +502,7 @@ export default function MainApp() {
     setMaxProjectSize(6);
     setAutoFillMode("firstChoiceOnly");
     setAssignmentToastsEnabled(true);
+    setEnforceMutualTeams(false);
     setLastAssignmentChange(null);
     setToastVisible(false);
     setSettingsOpen(false);
@@ -431,6 +629,7 @@ export default function MainApp() {
           onAssignStudent={handleAssignStudent}
           onUnassignedCountChange={setUnassignedCount}
           searchQuery={studentsSearchQuery}
+          teamsInfo={teamsInfo}
         />
       ),
     },
@@ -456,6 +655,7 @@ export default function MainApp() {
           searchQuery={projectsSearchQuery}
           maxChoices={Math.max(...students.map((s) => s.choices.length), 0)}
           maxStudentsPerProject={maxProjectSize}
+          teamsInfo={teamsInfo}
         />
       ),
     },
@@ -468,6 +668,7 @@ export default function MainApp() {
           projects={projects}
           projectAssignments={projectAssignments}
           onAddStudentsToProject={handleAddStudentsToProject}
+          teamsInfo={teamsInfo}
         />
       ),
     },
@@ -584,6 +785,25 @@ export default function MainApp() {
                   <option value="minFillGreedyRepair">Greedy + repair (min-fill)</option>
                   <option value="firstChoiceOnly">Simple (1st choice only)</option>
                 </select>
+              </div>
+
+              <div className="settings-spacer" />
+
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-label">Mutual teammate requests</span>
+                  <div className="settings-help">
+                    If enabled, the auto-fill algorithm will keep mutual teammate requests together when the students have identical project rankings.
+                  </div>
+                </div>
+                <label className="settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={enforceMutualTeams}
+                    onChange={(e) => setEnforceMutualTeams(e.target.checked)}
+                  />
+                  <span>Enforce</span>
+                </label>
               </div>
 
               <div className="settings-spacer" />

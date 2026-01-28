@@ -9,6 +9,7 @@ interface CSVUploadProps {
       id: string;
       name: string;
       choices: string[];
+      teammateIds?: string[];
     }>;
     projects: string[];
     projectAssignments?: Record<string, string[]>;
@@ -94,6 +95,17 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
         "assigned",
       ]);
 
+      // Optional: Team Member columns (Team Member 1/2/..., case-insensitive flexible match)
+      const teamMemberColumns: { column: string; number: number }[] = [];
+      headers.forEach((header) => {
+        const lowerHeader = header.toLowerCase().trim();
+        const match = lowerHeader.match(/team\s*member\s*#?\s*(\d+)/i);
+        if (match) {
+          teamMemberColumns.push({ column: header, number: parseInt(match[1], 10) });
+        }
+      });
+      teamMemberColumns.sort((a, b) => a.number - b.number);
+
       // Parse students
       const students = rows.map((row, idx) => {
         const choices = choiceColumns
@@ -101,10 +113,20 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
           .filter((choice) => choice && String(choice).trim() !== "")
           .map((choice) => String(choice).trim());
 
+        const id = String(row[idColumn] || idx);
+        const teammateIdsRaw = teamMemberColumns
+          .map(({ column }) => row[column])
+          .filter((v) => v && String(v).trim() !== "")
+          .map((v) => String(v).trim())
+          .filter((tId) => tId !== id);
+        // Treat teammate columns as an unordered set: dedupe + sort so column order never matters.
+        const teammateIds = Array.from(new Set(teammateIdsRaw)).sort((a, b) => a.localeCompare(b));
+
         return {
-          id: String(row[idColumn] || idx),
+          id,
           name: String(row[nameColumn] || "Unknown").trim(),
           choices,
+          teammateIds: teammateIds.length ? teammateIds : undefined,
         };
       });
 
@@ -170,6 +192,8 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Allow selecting the same file repeatedly (otherwise onChange may not fire).
+    e.target.value = "";
     if (file) {
       handleFile(file);
     }
@@ -182,7 +206,11 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          // Ensure re-selecting the same file triggers onChange.
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          fileInputRef.current?.click();
+        }}
       >
         <input
           ref={fileInputRef}
@@ -215,13 +243,16 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
           <div className="upload-info-content">
             <div><strong>Required Columns:</strong> Name, Id, Choice 1, Choice 2, ...</div>
             <div><strong>Optional Column:</strong> Assigned Project (does initial project assignments, skips auto-fill algorithm)</div>
+            <div><strong>Optional Columns:</strong> Team Member 1, Team Member 2, ... (IDs of requested teammates)</div>
+            <div className="upload-info-note">
+              Mutual teammate requests are only enforceable if both students list each other and have identical rankings (enforcement is optional in Settings).
+            </div>
             <div className="upload-info-note">Columns can be in any order</div>
             <div className="upload-info-example">
               <div>Example:</div>
-              <pre>Name,Id,Choice 1,Choice 2<br/>
-Alice,alice123,Project A,Project B<br/>
-Bob, bob123, Project B, Project A
-</pre>
+              <pre>Name,Id,Choice 1,Choice 2,Team Member 1,Assigned Project<br/>
+Alice,alice123,Project A,Project B,bob456,<br/>
+Bob,bob456,Project A,Project B,alice123,Project A</pre>
             </div>
           </div>
         </div>

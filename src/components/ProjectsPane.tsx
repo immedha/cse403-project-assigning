@@ -5,6 +5,7 @@ export type Student = {
   id: string;
   name: string;
   choices: string[];
+  teammateIds?: string[];
 };
 
 interface ProjectsPaneProps {
@@ -16,6 +17,7 @@ interface ProjectsPaneProps {
   searchQuery: string;
   maxChoices: number;
   maxStudentsPerProject: number;
+  teamsInfo: import("./StudentsPane").TeamsInfo;
 }
 
 export default function ProjectsPane({
@@ -27,6 +29,7 @@ export default function ProjectsPane({
   searchQuery,
   maxChoices,
   maxStudentsPerProject,
+  teamsInfo,
 }: ProjectsPaneProps) {
   const [studentTooltip, setStudentTooltip] = useState<{
     x: number;
@@ -143,6 +146,17 @@ export default function ProjectsPane({
                       >
                         <div className="student-info">
                           <span className="student-name">{student.name}</span>
+                          {teamsInfo.teamIndexByStudentId.get(student.id) !== undefined && (
+                            <span
+                              className="team-badge"
+                              style={teamsInfo.teamStyleByIndex(
+                                teamsInfo.teamIndexByStudentId.get(student.id)!
+                              )}
+                              title={`Team ${teamsInfo.teamIndexByStudentId.get(student.id)! + 1}`}
+                            >
+                              T{teamsInfo.teamIndexByStudentId.get(student.id)! + 1}
+                            </span>
+                          )}
                           <span
                             className={`preference-badge ${
                               preferenceRank === 1

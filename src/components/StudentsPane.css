@@ -30,6 +30,13 @@
   gap: 0.5rem;
 }
 
+.student-main {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
 .student-assign-select {
   width: 140px;
   max-width: 45%;
@@ -46,6 +53,18 @@
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.student-team-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border: 1px solid;
+  padding: 0.15rem 0.35rem;
+  border-radius: 999px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .student-item.assigned {
@@ -87,7 +106,7 @@
   font-size: 0.8125rem;
   font-weight: 500;
   color: #111827;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.1rem;
 }
 
 .student-preferences {

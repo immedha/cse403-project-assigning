@@ -21,6 +21,7 @@ interface AnalysisPaneProps {
   projects: string[];
   projectAssignments: Record<string, string[]>; // project name -> array of student IDs
   onAddStudentsToProject?: (project: string, studentNames: string[]) => void;
+  teamsInfo: import("./StudentsPane").TeamsInfo;
 }
 
 export default function AnalysisPane({
@@ -28,6 +29,7 @@ export default function AnalysisPane({
   projects,
   projectAssignments,
   onAddStudentsToProject,
+  teamsInfo,
 }: AnalysisPaneProps) {
   const [hoveredTooltip, setHoveredTooltip] = useState<{
     project: string;
@@ -36,6 +38,7 @@ export default function AnalysisPane({
     element: HTMLElement | null;
   } | null>(null);
   const [totalUpToRank, setTotalUpToRank] = useState<number | null>(null); // null means all ranks
+  const [showTeamDetails, setShowTeamDetails] = useState(true);
 
   const assignedStudentIds = useMemo(() => {
     const assigned = new Set<string>();
@@ -126,6 +129,19 @@ export default function AnalysisPane({
     };
   }, [students, assignedStudentIds, projectAssignments]);
 
+  const unenforceableEntries = useMemo(() => {
+    const entries: Array<{ studentName: string; teammateNames: string }> = [];
+    teamsInfo.unenforceableByStudentId.forEach((teammateIds, studentId) => {
+      const studentName = teamsInfo.studentById.get(studentId)?.name ?? studentId;
+      const teammateNames = teammateIds
+        .map((id) => teamsInfo.studentById.get(id)?.name ?? id)
+        .join(", ");
+      entries.push({ studentName, teammateNames });
+    });
+    entries.sort((a, b) => a.studentName.localeCompare(b.studentName));
+    return entries;
+  }, [teamsInfo]);
+
   if (students.length === 0) {
     return (
       <div className="analysis-pane">
@@ -183,6 +199,71 @@ export default function AnalysisPane({
           </span>
         </div>
       )}
+      <div className="analysis-divider" />
+      <div className="teams-summary">
+        <div className="teams-summary-row">
+          <span className="teams-summary-label">Teammate requests</span>
+          <button
+            type="button"
+            className="teams-summary-toggle"
+            onClick={() => setShowTeamDetails((v) => !v)}
+          >
+            {showTeamDetails ? "Hide" : "View"}
+          </button>
+        </div>
+        {showTeamDetails && (
+          <div className="teams-summary-details">
+            {teamsInfo.teams.length > 0 ? (
+              <div className="teams-summary-block">
+                <div className="teams-summary-title">Enforceable teams (mutual + identical rankings)</div>
+                <ul className="teams-summary-list">
+                  {teamsInfo.teams.slice(0, 10).map((t, idx) => (
+                    <li key={t.memberIds.join("|")}>
+                      <span
+                        className="analysis-team-pill"
+                        style={teamsInfo.teamStyleByIndex(idx)}
+                        title={`Enforceable Team ${idx + 1}`}
+                      >
+                        Team {idx + 1}
+                      </span>{" "}
+                      {t.memberIds
+                        .map((id) => teamsInfo.studentById.get(id)?.name ?? id)
+                        .join(", ")}
+                    </li>
+                  ))}
+                </ul>
+                {teamsInfo.teams.length > 10 && (
+                  <div className="teams-summary-more">…and {teamsInfo.teams.length - 10} more</div>
+                )}
+              </div>
+            ) : (
+              <div className="teams-summary-block">
+                <div className="teams-summary-title">Enforceable teams</div>
+                <div className="teams-summary-empty">None</div>
+              </div>
+            )}
+
+            {unenforceableEntries.length > 0 && (
+              <div className="teams-summary-block">
+                <div className="teams-summary-title">Unenforceable requests</div>
+                <ul className="teams-summary-list">
+                  {unenforceableEntries.slice(0, 12).map((e, idx) => (
+                    <li key={`${e.studentName}-${e.teammateNames}-${idx}`}>
+                      {e.studentName} → {e.teammateNames}
+                    </li>
+                  ))}
+                </ul>
+                {unenforceableEntries.length > 12 && (
+                  <div className="teams-summary-more">
+                    …and {unenforceableEntries.length - 12} more
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="analysis-divider" />
       {hoveredTooltip && hoveredTooltip.element && (
         <>
           <div

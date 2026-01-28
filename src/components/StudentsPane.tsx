@@ -5,6 +5,16 @@ export type Student = {
   id: string;
   name: string;
   choices: string[];
+  teammateIds?: string[];
+};
+
+export type TeamsInfo = {
+  studentById: Map<string, Student>;
+  teams: Array<{ memberIds: string[]; rankingKey: string }>;
+  teamMembersByStudentId: Map<string, string[]>;
+  teamIndexByStudentId: Map<string, number>;
+  unenforceableByStudentId: Map<string, string[]>;
+  teamStyleByIndex: (idx: number) => { backgroundColor: string; borderColor: string; color: string };
 };
 
 interface StudentsPaneProps {
@@ -16,6 +26,7 @@ interface StudentsPaneProps {
   onAssignStudent: (studentId: string, projectName: string | null) => void;
   onUnassignedCountChange?: (count: number) => void;
   searchQuery: string;
+  teamsInfo: TeamsInfo;
 }
 
 export default function StudentsPane({
@@ -27,6 +38,7 @@ export default function StudentsPane({
   onAssignStudent,
   onUnassignedCountChange,
   searchQuery,
+  teamsInfo,
 }: StudentsPaneProps) {
   const getStudentProject = (studentId: string): string | null => {
     for (const [project, studentIds] of Object.entries(projectAssignments)) {
@@ -52,8 +64,6 @@ export default function StudentsPane({
       ? [...students]
       : students.filter((student) => !assignedStudentIds.has(student.id));
 
-    filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
-
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(
@@ -63,8 +73,24 @@ export default function StudentsPane({
       );
     }
 
+    // Sort by team (team students first), then alphabetically by name.
+    // Non-team students come after, alphabetically.
+    filtered = filtered.sort((a, b) => {
+      const ta = teamsInfo.teamIndexByStudentId.get(a.id);
+      const tb = teamsInfo.teamIndexByStudentId.get(b.id);
+      const aHasTeam = ta !== undefined;
+      const bHasTeam = tb !== undefined;
+      if (aHasTeam && bHasTeam) {
+        if (ta! !== tb!) return ta! - tb!;
+        return a.name.localeCompare(b.name);
+      }
+      if (aHasTeam && !bHasTeam) return -1;
+      if (!aHasTeam && bHasTeam) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
     return filtered;
-  }, [students, assignedStudentIds, searchQuery]);
+  }, [students, assignedStudentIds, searchQuery, teamsInfo.teamIndexByStudentId]);
 
   if (displayedStudents.length === 0) {
     return (
@@ -82,6 +108,7 @@ export default function StudentsPane({
         {displayedStudents.map((student) => {
           const isAssigned = assignedStudentIds.has(student.id);
           const assignedProject = getStudentProject(student.id);
+          const teamIndex = teamsInfo.teamIndexByStudentId.get(student.id);
 
           return (
             <div
@@ -94,7 +121,18 @@ export default function StudentsPane({
               }}
             >
               <div className="student-top-row">
-                <div className="student-name">{student.name}</div>
+                <div className="student-main">
+                  <div className="student-name">{student.name}</div>
+                  {teamIndex !== undefined && (
+                    <span
+                      className="student-team-badge"
+                      style={teamsInfo.teamStyleByIndex(teamIndex)}
+                      title={`Enforceable Team ${teamIndex + 1}`}
+                    >
+                      Team {teamIndex + 1}
+                    </span>
+                  )}
+                </div>
                 <select
                   className="student-assign-select"
                   value={assignedProject ?? ""}
