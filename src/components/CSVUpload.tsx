@@ -245,7 +245,7 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
             <div><strong>Optional Column:</strong> Assigned Project (does initial project assignments, skips auto-fill algorithm)</div>
             <div><strong>Optional Columns:</strong> Team Member 1, Team Member 2, ... (IDs of requested teammates)</div>
             <div className="upload-info-note">
-              Mutual teammate requests are only enforceable if both students list each other and have identical rankings (enforcement is optional in Settings).
+              Mutual teammate requests are only enforceable if ALL students list each other and have identical rankings.
             </div>
             <div className="upload-info-note">Columns can be in any order</div>
             <div className="upload-info-example">

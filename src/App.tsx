@@ -30,7 +30,6 @@ type PersistedState = {
   studentsSearchQuery: string;
   projectsSearchQuery: string;
   assignmentToastsEnabled: boolean;
-  enforceMutualTeams: boolean;
 };
 
 function safeParsePersistedState(raw: string | null): PersistedState | null {
@@ -45,7 +44,6 @@ function safeParsePersistedState(raw: string | null): PersistedState | null {
     if (typeof data.studentsSearchQuery !== "string") return null;
     if (typeof data.projectsSearchQuery !== "string") return null;
     if (typeof data.assignmentToastsEnabled !== "boolean") return null;
-    if (typeof data.enforceMutualTeams !== "boolean") return null;
     return data as PersistedState;
   } catch {
     return null;
@@ -154,9 +152,6 @@ export default function MainApp() {
   const [assignmentToastsEnabled, setAssignmentToastsEnabled] = useState(
     loaded?.assignmentToastsEnabled ?? true
   );
-  const [enforceMutualTeams, setEnforceMutualTeams] = useState(
-    loaded?.enforceMutualTeams ?? false
-  );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [lastAssignmentChange, setLastAssignmentChange] = useState<{
@@ -251,69 +246,18 @@ export default function MainApp() {
       seed: 1,
     });
 
-    const enforced = enforceMutualTeams
-      ? enforceTeamsInAssignments({
-          assignments: base,
-          teamMembersByStudentId: new Map(
-            // rebuild team mapping for freshly uploaded students
-            (() => {
-              const tempById = new Map(data.students.map((s) => [s.id, s]));
-              const rankingKey = (s: Student) => s.choices.join("\u0001");
-              const requested = new Map<string, string[]>(
-                data.students.map((s) => [
-                  s.id,
-                  Array.from(new Set((s.teammateIds ?? []).filter(Boolean))).sort((a, b) =>
-                    String(a).localeCompare(String(b))
-                  ),
-                ])
-              );
-              const adj = new Map<string, Set<string>>();
-              const addEdge = (a: string, b: string) => {
-                if (!adj.has(a)) adj.set(a, new Set());
-                if (!adj.has(b)) adj.set(b, new Set());
-                adj.get(a)!.add(b);
-                adj.get(b)!.add(a);
-              };
-              for (const s of data.students) {
-                for (const tId of requested.get(s.id) ?? []) {
-                  const t = tempById.get(tId);
-                  if (!t) continue;
-                  const mutual = (requested.get(tId) ?? []).includes(s.id);
-                  if (!mutual) continue;
-                  if (rankingKey(s) !== rankingKey(t)) continue;
-                  addEdge(s.id, tId);
-                }
-              }
-              const visited = new Set<string>();
-              const map = new Map<string, string[]>();
-              for (const s of data.students) {
-                if (visited.has(s.id)) continue;
-                const neigh = adj.get(s.id);
-                if (!neigh || neigh.size === 0) continue;
-                const stack = [s.id];
-                const comp: string[] = [];
-                visited.add(s.id);
-                while (stack.length) {
-                  const cur = stack.pop()!;
-                  comp.push(cur);
-                  for (const n of adj.get(cur) ?? []) {
-                    if (!visited.has(n)) {
-                      visited.add(n);
-                      stack.push(n);
-                    }
-                  }
-                }
-                if (comp.length >= 2) {
-                  comp.sort();
-                  comp.forEach((id) => map.set(id, comp));
-                }
-              }
-              return map;
-            })()
-          ),
-          capacity: Math.max(1, maxProjectSize),
-        })
-      : base;
+    const enforced = enforceTeamsInAssignments({
+      assignments: base,
+      teamMembersByStudentId: new Map(
+        computeTeamsFromCsvStudents({
+          students: data.students.map((s) => ({
+            id: s.id,
+            teammateIds: s.teammateIds,
+          })),
+        }).teams.flatMap((t) => t.memberIds.map((id) => [id, t.memberIds] as const))
+      ),
+      capacity: Math.max(1, maxProjectSize),
+    });
 
     setProjectAssignments(enforced);
     setLastAssignmentChange(null);
@@ -474,7 +418,6 @@ export default function MainApp() {
         studentsSearchQuery,
         projectsSearchQuery,
         assignmentToastsEnabled,
-        enforceMutualTeams,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     }, 750);
@@ -489,7 +432,6 @@ export default function MainApp() {
     studentsSearchQuery,
     projectsSearchQuery,
     assignmentToastsEnabled,
-    enforceMutualTeams,
   ]);
 
   const handleClearSavedData = () => {
@@ -502,7 +444,6 @@ export default function MainApp() {
     setMaxProjectSize(6);
     setAutoFillMode("firstChoiceOnly");
     setAssignmentToastsEnabled(true);
-    setEnforceMutualTeams(false);
     setLastAssignmentChange(null);
     setToastVisible(false);
     setSettingsOpen(false);
@@ -785,25 +726,6 @@ export default function MainApp() {
                   <option value="minFillGreedyRepair">Greedy + repair (min-fill)</option>
                   <option value="firstChoiceOnly">Simple (1st choice only)</option>
                 </select>
-              </div>
-
-              <div className="settings-spacer" />
-
-              <div className="settings-row">
-                <div className="settings-row-left">
-                  <span className="settings-label">Mutual teammate requests</span>
-                  <div className="settings-help">
-                    If enabled, the auto-fill algorithm will keep mutual teammate requests together when the students have identical project rankings.
-                  </div>
-                </div>
-                <label className="settings-toggle">
-                  <input
-                    type="checkbox"
-                    checked={enforceMutualTeams}
-                    onChange={(e) => setEnforceMutualTeams(e.target.checked)}
-                  />
-                  <span>Enforce</span>
-                </label>
               </div>
 
               <div className="settings-spacer" />
