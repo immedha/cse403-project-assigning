@@ -1,29 +1,42 @@
-# Group Maker
+# GroupMatch
 
-A web application for managing student project assignments with drag-and-drop functionality and comprehensive data analysis.
+A web application for assigning students to project groups with drag-and-drop, satisfaction-aware auto-fill algorithms, and rich analysis.
 
 ## Features
 
-- **CSV Import**: Upload CSV files containing student information and project preferences
-- **Drag & Drop Assignment**: Easily assign students to projects by dragging them into project boxes
-- **Project Management**: Organize students into project groups with a maximum of 6 students per project
-- **Data Analysis**: 
-  - View project popularity statistics (1st, 2nd, 3rd, 4th, 5th choice counts)
-  - Identify most popular projects
-  - Find projects with no student interest
-  - See total choice counts per project
+- **CSV Import**:
+  - Flexible columns: detects `Name`, `Id`, and any `Choice 1`, `Choice 2`, … columns (case-insensitive).
+  - Optional `Assigned Project` column to preload an existing matching.
+- **Auto-fill algorithms** (configurable in Settings):
+  - **Simple (default)**: assign each student to their 1st choice if capacity allows.
+  - **Greedy + repair (min-fill)**: chooses a subset of projects, seeds each used project to ≥60% of max size, then improves total preference satisfaction with quick swaps.
+  - **No auto-fill**: start with everyone unassigned.
+- **Drag & Drop assignment**:
+  - Unassigned students pane with search, preference badges, and counts.
+  - Project cards with drag-and-drop students, capacity indicators, and right-click preference tooltips.
+- **Project analysis**:
+  - Choice-rank table with interactive rank filters and detailed tooltips (including “Add all” to a project).
+  - Compact satisfaction stats (percent getting 1st / 2nd / 3rd+ choices).
+- **Round-trip export**:
+  - Export to XLSX with columns `Assigned Project, Name, Id, Choice 1, Choice 2, …`.
+  - The exported file can be re-imported as CSV (after saving as CSV) to reproduce the same state.
+- **Persistence**:
+  - All page state (students, projects, assignments, search, settings) is auto-saved to `localStorage`.
+  - “Clear saved data” button in Settings resets the app in this browser.
 
 ## CSV Format
 
-The application expects a CSV file with the following columns:
-- `Name` - Student's name
-- `Email Address` - Student's email
-- `Your UW NetId` - Student's NetID
-- `First (1) Choice` - First project preference
-- `Second (2)  Choice` - Second project preference
-- `Third (3) Choice` - Third project preference
-- `Fourth (4) Choice` - Fourth project preference
-- `Fifth (5) Choice` - Fifth project preference
+The application expects a header row and at least these columns (names are matched case-insensitively):
+
+- **Required**
+  - `Name` – student name (or equivalent like `Student Name`)
+  - `Id` – unique student identifier (NetID, SID, etc.)
+  - One or more `Choice N` columns (`Choice 1`, `Choice 2`, `Choice #3`, `choice1`, …).
+
+- **Optional**
+  - `Assigned Project` – if present, students are initially assigned to the given project names.
+
+All distinct project names appearing in any `Choice` column or in `Assigned Project` are treated as projects in the app.
 
 ## Getting Started
 
@@ -55,14 +68,20 @@ npm run preview
 
 ## Usage
 
-1. **Upload CSV**: Click the file input in the header to upload a CSV file with student data
-2. **View Students**: Unassigned students appear in the left panel with their preferences
-3. **Assign Projects**: Drag students from the unassigned list and drop them into project boxes
-4. **Analyze Data**: View comprehensive statistics in the right panel:
-   - See which projects are most popular (highlighted in green)
-   - Identify projects with no interest (highlighted in red)
-   - Review choice distribution across all preference ranks
-5. **Manage Groups**: Remove students from projects using the × button
+1. **Upload CSV**: Use the upload button in the header to load students, preferences, and (optionally) existing assignments.
+2. **Auto-fill (optional)**: Choose an auto-fill algorithm in Settings and re-upload, or keep “No auto-fill” and assign manually.
+3. **Assign projects**:
+   - Drag students from the Unassigned Students pane into project cards.
+   - Drag between projects to move students; use the × button to unassign.
+4. **Search & inspect**:
+   - Search students by name/ID; assigned students still show (grayed out) when searching.
+   - Right-click a student in a project to see their full preference list.
+5. **Analyze**:
+   - Use the Project Analysis pane to see choice counts per project and satisfaction stats.
+   - Use the rank tabs to focus on 1st, 2nd, 3rd, … choices.
+6. **Export / share**:
+   - Click the Export button in the header to download an XLSX with `Assigned Project, Name, Id, Choice 1..N`.
+   - This file can be saved as CSV and re-used as input.
 
 ## Technology Stack
 
@@ -72,15 +91,25 @@ npm run preview
 - **PapaParse** - CSV parsing
 - **CSS3** - Styling with modern design
 
-## Project Structure
+## Project Structure (high level)
 
 ```
 src/
-  ├── App.tsx       # Main application component
-  ├── App.css       # Application styles
-  ├── index.css     # Global styles
-  └── main.tsx      # Application entry point
-```
+  ├── main.tsx                 # App entry (mounts MainApp)
+  ├── App.tsx                  # Main application component
+  ├── index.css                # Global resets and typography
+  ├── components/
+  │   ├── CSVUpload.tsx        # CSV uploader
+  │   ├── StudentsPane.tsx     # Unassigned students list & search
+  │   ├── ProjectsPane.tsx     # Project cards and assignments
+  │   ├── AnalysisPane.tsx     # Analysis table & satisfaction stats
+  │   ├── Tooltip.tsx          # Shared tooltip component
+  │   └── Layout/
+  │       ├── SimpleToggleLayout.tsx # Panel/tabs layout
+  │       └── MainApp.css            # Main layout styles
+  └── utils/
+      ├── autoAssign.ts        # Auto-fill algorithms
+      └── exportXlsx.ts        # XLSX round-trip export helper
 
 ## Features in Detail
 

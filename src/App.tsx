@@ -315,7 +315,7 @@ export default function MainApp() {
   return (
     <div className="main-app">
       <header className="app-header">
-        <h1 className="app-title">Group Maker</h1>
+        <h1 className="app-title">GroupMatch</h1>
         <div className="header-actions">
           <div className="header-upload">
             <CSVUpload onUpload={handleCSVUpload} />
