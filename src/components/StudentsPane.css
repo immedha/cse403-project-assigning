@@ -1,0 +1,95 @@
+.students-pane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.students-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.student-item {
+  padding: 0.5rem 0.75rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: grab;
+  transition: all 0.15s ease;
+}
+
+.student-item.assigned {
+  background: #f9fafb;
+  opacity: 0.6;
+  cursor: grab;
+}
+
+.student-item.assigned:hover {
+  border-color: #3b82f6;
+  background: #f3f4f6;
+  transform: translateX(2px);
+}
+
+.student-item.assigned:active {
+  cursor: grabbing;
+  opacity: 0.7;
+}
+
+.student-item:not(.assigned):hover {
+  border-color: #3b82f6;
+  background: #f8fafc;
+  transform: translateX(2px);
+}
+
+.student-item:not(.assigned):active {
+  cursor: grabbing;
+  opacity: 0.7;
+}
+
+.student-assigned {
+  font-size: 0.6875rem;
+  color: #6b7280;
+  font-style: italic;
+  margin-bottom: 0.25rem;
+}
+
+.student-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.student-preferences {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.preference-badge {
+  font-size: 0.6875rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.preference-more {
+  font-size: 0.6875rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.students-pane-empty {
+  padding: 2rem;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
