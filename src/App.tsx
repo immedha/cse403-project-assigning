@@ -1,817 +1,421 @@
-import { useMemo, useState, useEffect } from "react";
-import Papa from "papaparse";
-import "./App.css";
+import { useEffect, useMemo, useState } from "react";
+import SimpleToggleLayout from "./components/Layout/SimpleToggleLayout";
+import type { Panel } from "./components/Layout/SimpleToggleLayout";
+import CSVUpload from "./components/CSVUpload";
+import StudentsPane from "./components/StudentsPane";
+import ProjectsPane from "./components/ProjectsPane";
+import AnalysisPane from "./components/AnalysisPane";
+import { Download, Settings } from "lucide-react";
+import { autoAssign, type AutoFillMode } from "./utils/autoAssign";
+import { buildRoundTripExport } from "./utils/exportXlsx";
+import "./components/Layout/MainApp.css";
+import "./components/AnalysisPane.css";
 
-type Student = {
+export type Student = {
   id: string;
   name: string;
-  email: string;
-  netid: string;
   choices: string[];
 };
 
-type Group = {
-  id: string;
-  project: string;
-  students: string[];
+const STORAGE_KEY = "group-maker:v1";
+
+type PersistedState = {
+  students: Student[];
+  projects: string[];
+  projectAssignments: Record<string, string[]>;
+  maxProjectSize: number;
+  autoFillMode: AutoFillMode;
+  studentsSearchQuery: string;
+  projectsSearchQuery: string;
 };
 
-type ProjectStats = {
-  project: string;
-  choiceCounts: Map<number, number>; // choice rank -> count
-  choiceStudents: Map<number, string[]>; // choice rank -> student names
-  total: number;
-};
-
-export default function App() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [hoveredTooltip, setHoveredTooltip] = useState<{
-    project: string;
-    choice: number;
-    students: string[];
-  } | null>(null);
-  const [hoveredStudent, setHoveredStudent] = useState<Student | null>(null);
-  const [totalUpToRank, setTotalUpToRank] = useState<number | null>(null); // null means all ranks
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    const savedStudents = localStorage.getItem("groupMaker_students");
-    const savedGroups = localStorage.getItem("groupMaker_groups");
-
-    if (savedStudents) {
-      try {
-        const parsed = JSON.parse(savedStudents);
-        setStudents(parsed);
-      } catch (e) {
-        console.error("Error loading students from localStorage:", e);
-      }
-    }
-
-    if (savedGroups) {
-      try {
-        const parsed = JSON.parse(savedGroups);
-        setGroups(parsed);
-      } catch (e) {
-        console.error("Error loading groups from localStorage:", e);
-      }
-    }
-  }, []);
-
-  // Auto-save every 2 seconds
-  useEffect(() => {
-    if (students.length === 0 && groups.length === 0) return;
-
-    const interval = setInterval(() => {
-      try {
-        localStorage.setItem("groupMaker_students", JSON.stringify(students));
-        localStorage.setItem("groupMaker_groups", JSON.stringify(groups));
-      } catch (e) {
-        console.error("Error auto-saving to localStorage:", e);
-      }
-    }, 2000); // Save every 2 seconds
-
-    return () => clearInterval(interval);
-  }, [students, groups]);
-
-  // Auto-save on page close/reload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      try {
-        localStorage.setItem("groupMaker_students", JSON.stringify(students));
-        localStorage.setItem("groupMaker_groups", JSON.stringify(groups));
-      } catch (e) {
-        console.error("Error auto-saving to localStorage:", e);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        try {
-          localStorage.setItem("groupMaker_students", JSON.stringify(students));
-          localStorage.setItem("groupMaker_groups", JSON.stringify(groups));
-        } catch (e) {
-          console.error("Error auto-saving to localStorage:", e);
-        }
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [students, groups]);
-
-  // Save to localStorage (with alert for manual save)
-  const saveToLocalStorage = () => {
-    try {
-      localStorage.setItem("groupMaker_students", JSON.stringify(students));
-      localStorage.setItem("groupMaker_groups", JSON.stringify(groups));
-      alert("Data saved successfully!");
-    } catch (e) {
-      console.error("Error saving to localStorage:", e);
-      alert("Error saving data. Please try again.");
-    }
-  };
-
-  // Clear localStorage
-  const clearLocalStorage = () => {
-    if (confirm("Are you sure you want to clear all saved data?")) {
-      localStorage.removeItem("groupMaker_students");
-      localStorage.removeItem("groupMaker_groups");
-      setStudents([]);
-      setGroups([]);
-      alert("Data cleared!");
-    }
-  };
-
-  // Export groupings for sharing
-  const exportGroupings = () => {
-    if (groups.length === 0) {
-      alert("No groupings to export!");
-      return;
-    }
-
-    // Create export data with student identifiers for matching
-    const exportData = {
-      version: "1.0",
-      exportDate: new Date().toISOString(),
-      groups: groups.map((group) => ({
-        project: group.project,
-        students: group.students.map((studentId) => {
-          const student = findStudentById(studentId);
-          if (!student) return null;
-          return {
-            name: student.name,
-            netid: student.netid,
-            email: student.email,
-          };
-        }).filter(Boolean),
-      })),
-    };
-
-    // Convert to JSON and create download
-    const jsonStr = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `groupings-export-${new Date().toISOString().split("T")[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    alert("Groupings exported successfully! Share this file with others.");
-  };
-
-  // Import groupings from exported file
-  const importGroupings = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (students.length === 0) {
-      alert("Please upload a CSV file first before importing groupings!");
-      event.target.value = ""; // Reset input
-      return;
-    }
-
-    file.text().then((text) => {
-      try {
-        const importData = JSON.parse(text);
-
-        if (!importData.groups || !Array.isArray(importData.groups)) {
-          alert("Invalid export file format!");
-          event.target.value = "";
-          return;
-        }
-
-        // Create a map of students by name, netid, and email for matching
-        const studentMap = new Map<string, Student>();
-        students.forEach((student) => {
-          // Use multiple keys for matching
-          studentMap.set(student.name.toLowerCase(), student);
-          studentMap.set(student.netid.toLowerCase(), student);
-          studentMap.set(student.email.toLowerCase(), student);
-        });
-
-        // Recreate groups with matched students
-        const importedGroups: Group[] = importData.groups.map((importGroup: any, idx: number) => {
-          const matchedStudentIds: string[] = [];
-
-          importGroup.students.forEach((importStudent: any) => {
-            // Try to match by name, netid, or email
-            const matchedStudent =
-              studentMap.get(importStudent.name?.toLowerCase() || "") ||
-              studentMap.get(importStudent.netid?.toLowerCase() || "") ||
-              studentMap.get(importStudent.email?.toLowerCase() || "");
-
-            if (matchedStudent && !matchedStudentIds.includes(matchedStudent.id)) {
-              matchedStudentIds.push(matchedStudent.id);
-            }
-          });
-
-          return {
-            id: String(idx),
-            project: importGroup.project,
-            students: matchedStudentIds,
-          };
-        });
-
-        // Get all projects from imported data and existing groups
-        const importedProjects = new Set(importedGroups.map((g: Group) => g.project));
-        const existingProjects = new Set(groups.map((g) => g.project));
-        
-        // Also get all projects from students' choices to ensure we have all projects
-        const allChoiceProjects = new Set<string>();
-        students.forEach((s) => s.choices.forEach((c) => allChoiceProjects.add(c)));
-        
-        // Combine all projects
-        const allProjects = new Set([...existingProjects, ...importedProjects, ...allChoiceProjects]);
-        const finalGroups: Group[] = [];
-        let groupIdCounter = 0;
-
-        allProjects.forEach((project) => {
-          const importedGroup = importedGroups.find((g: Group) => g.project === project);
-          const existingGroup = groups.find((g) => g.project === project);
-
-          if (importedGroup) {
-            // Use imported group (with matched students)
-            finalGroups.push({
-              ...importedGroup,
-              id: String(groupIdCounter++),
-            });
-          } else if (existingGroup) {
-            // Keep existing group
-            finalGroups.push({
-              ...existingGroup,
-              id: String(groupIdCounter++),
-            });
-          } else {
-            // New project (from choices but not in import or existing)
-            finalGroups.push({
-              id: String(groupIdCounter++),
-              project,
-              students: [],
-            });
-          }
-        });
-
-        setGroups(finalGroups);
-        const totalMatched = importedGroups.reduce((sum, g) => sum + g.students.length, 0);
-        alert(
-          `Successfully imported ${importedGroups.length} groups! ${totalMatched} students matched and assigned.`
-        );
-        event.target.value = ""; // Reset input
-      } catch (e) {
-        console.error("Error importing groupings:", e);
-        alert("Error importing file. Please make sure it's a valid export file.");
-        event.target.value = "";
-      }
-    });
-  };
-
-  function parseCSV(csvText: string) {
-    const parsed = Papa.parse(csvText, {
-      header: true,
-      skipEmptyLines: true,
-    });
-
-    const rows = parsed.data as any[];
-
-    // Dynamically find all choice columns
-    const choiceColumns: string[] = [];
-    if (rows.length > 0) {
-      const headers = Object.keys(rows[0]);
-      // Look for columns matching choice patterns
-      headers.forEach((header) => {
-        const lowerHeader = header.toLowerCase();
-        if (
-          lowerHeader.includes("choice") &&
-          (lowerHeader.includes("first") ||
-            lowerHeader.includes("second") ||
-            lowerHeader.includes("third") ||
-            lowerHeader.includes("fourth") ||
-            lowerHeader.includes("fifth") ||
-            lowerHeader.includes("sixth") ||
-            lowerHeader.includes("seventh") ||
-            lowerHeader.includes("eighth") ||
-            lowerHeader.includes("ninth") ||
-            lowerHeader.includes("tenth") ||
-            /^\d+/.test(lowerHeader))
-        ) {
-          choiceColumns.push(header);
-        }
-      });
-      // Sort by the number in the header
-      choiceColumns.sort((a, b) => {
-        const numA = parseInt(a.match(/\d+/)?.[0] || "0");
-        const numB = parseInt(b.match(/\d+/)?.[0] || "0");
-        return numA - numB;
-      });
-    }
-
-    const newStudents: Student[] = rows.map((row, idx) => {
-      const choices = choiceColumns
-        .map((col) => row[col])
-        .filter(Boolean)
-        .filter((choice) => choice && choice.trim() !== "");
-
-      return {
-        id: String(idx),
-        name: row["Name"] || "Unknown",
-        email: row["Email Address"] || "Unknown",
-        netid: row["Your UW NetId"] || "Unknown",
-        choices,
-      };
-    });
-
-    setStudents(newStudents);
-
-    // Build project bubbles from all choices
-    const allProjects = new Set<string>();
-    newStudents.forEach((s) => s.choices.forEach((c) => allProjects.add(c)));
-
-    const newGroups: Group[] = Array.from(allProjects).map((project, i) => ({
-      id: String(i),
-      project,
-      students: [],
-    }));
-
-    // Auto-assign students to their first choice
-    const groupsWithStudents = newGroups.map((group) => {
-      const studentsForThisProject = newStudents
-        .filter((s) => s.choices[0] === group.project)
-        .map((s) => s.id);
-      return {
-        ...group,
-        students: studentsForThisProject,
-      };
-    });
-
-    setGroups(groupsWithStudents);
-
-    // Auto-save after CSV parsing
-    setTimeout(() => {
-      localStorage.setItem("groupMaker_students", JSON.stringify(newStudents));
-      localStorage.setItem("groupMaker_groups", JSON.stringify(groupsWithStudents));
-    }, 100);
+function safeParsePersistedState(raw: string | null): PersistedState | null {
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw) as Partial<PersistedState>;
+    if (!data || typeof data !== "object") return null;
+    if (!Array.isArray(data.students) || !Array.isArray(data.projects)) return null;
+    if (!data.projectAssignments || typeof data.projectAssignments !== "object") return null;
+    if (typeof data.maxProjectSize !== "number") return null;
+    if (typeof data.autoFillMode !== "string") return null;
+    if (typeof data.studentsSearchQuery !== "string") return null;
+    if (typeof data.projectsSearchQuery !== "string") return null;
+    return data as PersistedState;
+  } catch {
+    return null;
   }
+}
 
-  const unassignedStudents = useMemo(() => {
-    const assigned = new Set(groups.flatMap((g) => g.students));
-    const filtered = students
-      .filter((s) => !assigned.has(s.id))
-      .filter((s) => {
-        if (!searchQuery.trim()) return true;
-        const query = searchQuery.toLowerCase();
-        return (
-          s.name.toLowerCase().includes(query) ||
-          s.netid.toLowerCase().includes(query) ||
-          s.email.toLowerCase().includes(query)
-        );
+function normalizeAssignments(
+  projects: string[],
+  projectAssignments: Record<string, string[]>
+): Record<string, string[]> {
+  const next: Record<string, string[]> = {};
+  const studentIdsSeen = new Set<string>();
+
+  // Ensure every project has an array and remove duplicates across projects.
+  for (const project of projects) {
+    const ids = Array.isArray(projectAssignments[project]) ? projectAssignments[project] : [];
+    const filtered: string[] = [];
+    for (const id of ids) {
+      if (typeof id !== "string") continue;
+      if (studentIdsSeen.has(id)) continue;
+      studentIdsSeen.add(id);
+      filtered.push(id);
+    }
+    next[project] = filtered;
+  }
+  return next;
+}
+
+export default function MainApp() {
+  const loaded = safeParsePersistedState(localStorage.getItem(STORAGE_KEY));
+
+  const [students, setStudents] = useState<Student[]>(loaded?.students ?? []);
+  const [projects, setProjects] = useState<string[]>(loaded?.projects ?? []);
+  // Track assignments: project name -> array of student IDs
+  const [projectAssignments, setProjectAssignments] = useState<Record<string, string[]>>(
+    loaded?.projects && loaded?.projectAssignments
+      ? normalizeAssignments(loaded.projects, loaded.projectAssignments)
+      : {}
+  );
+  const [maxProjectSize, setMaxProjectSize] = useState(
+    Number.isFinite(loaded?.maxProjectSize) ? Math.max(1, loaded!.maxProjectSize) : 6
+  );
+  const [autoFillMode, setAutoFillMode] = useState<AutoFillMode>(
+    (loaded?.autoFillMode as AutoFillMode) ?? "firstChoiceOnly"
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const handleCSVUpload = (data: {
+    students: Student[];
+    projects: string[];
+    projectAssignments?: Record<string, string[]>;
+  }) => {
+    setStudents(data.students);
+    setProjects(data.projects);
+    if (data.projectAssignments) {
+      // If input includes Assigned Project, trust it as the starting state.
+      setProjectAssignments(data.projectAssignments);
+      return;
+    }
+
+    setProjectAssignments(
+      autoAssign({
+        mode: autoFillMode,
+        students: data.students,
+        projects: data.projects,
+        capacity: Math.max(1, maxProjectSize),
+        seed: 1,
       })
-      .sort((a, b) => {
-        const a1 = a.choices[0] || "";
-        const b1 = b.choices[0] || "";
-        return a1.localeCompare(b1);
+    );
+  };
+
+  const assignedStudentIds = useMemo(() => {
+    const assigned = new Set<string>();
+    Object.values(projectAssignments).forEach((studentIds) => {
+      studentIds.forEach((id) => assigned.add(id));
+    });
+    return assigned;
+  }, [projectAssignments]);
+
+  const handleStudentDrop = (studentId: string, projectName: string) => {
+    setProjectAssignments((prev) => {
+      const newAssignments = { ...prev };
+      
+      // Remove student from any existing project
+      Object.keys(newAssignments).forEach((project) => {
+        newAssignments[project] = newAssignments[project].filter((id) => id !== studentId);
       });
-    return filtered;
-  }, [students, groups, searchQuery]);
 
-  const projectStats = useMemo(() => {
-    const statsMap = new Map<string, ProjectStats>();
+      // Add to new project (only if not over capacity)
+      const currentCount = (newAssignments[projectName] || []).length;
+      if (currentCount < maxProjectSize) {
+        if (!newAssignments[projectName]) {
+          newAssignments[projectName] = [];
+        }
+        newAssignments[projectName] = [...newAssignments[projectName], studentId];
+      }
 
-    // Get assigned student IDs to exclude them from statistics
-    const assignedStudentIds = new Set(groups.flatMap((g) => g.students));
+      return newAssignments;
+    });
+  };
 
-    // Initialize all projects
-    groups.forEach((g) => {
-      statsMap.set(g.project, {
-        project: g.project,
-        choiceCounts: new Map<number, number>(),
-        choiceStudents: new Map<number, string[]>(),
-        total: 0,
-      });
+  const handleStudentRemove = (studentId: string, projectName: string) => {
+    setProjectAssignments((prev) => {
+      const newAssignments = { ...prev };
+      if (newAssignments[projectName]) {
+        newAssignments[projectName] = newAssignments[projectName].filter((id) => id !== studentId);
+      }
+      return newAssignments;
+    });
+  };
+
+  const handleAddStudentsToProject = (projectName: string, studentNames: string[]) => {
+    setProjectAssignments((prev) => {
+      const newAssignments = { ...prev };
+      const currentCount = (newAssignments[projectName] || []).length;
+      const availableSlots = maxProjectSize - currentCount;
+      
+      if (availableSlots <= 0) return prev;
+
+      // Find student IDs by name
+      const studentIdsToAdd: string[] = [];
+      for (const studentName of studentNames) {
+        if (studentIdsToAdd.length >= availableSlots) break;
+        const student = students.find((s) => s.name === studentName);
+        if (student) {
+          // Check if student is already assigned
+          const isAlreadyAssigned = Object.values(newAssignments).some((ids) =>
+            ids.includes(student.id)
+          );
+          if (!isAlreadyAssigned) {
+            studentIdsToAdd.push(student.id);
+          }
+        }
+      }
+
+      if (studentIdsToAdd.length > 0) {
+        if (!newAssignments[projectName]) {
+          newAssignments[projectName] = [];
+        }
+        newAssignments[projectName] = [...newAssignments[projectName], ...studentIdsToAdd];
+      }
+
+      return newAssignments;
+    });
+  };
+
+  const [unassignedCount, setUnassignedCount] = useState(0);
+  const [studentsSearchQuery, setStudentsSearchQuery] = useState(loaded?.studentsSearchQuery ?? "");
+  const [projectsSearchQuery, setProjectsSearchQuery] = useState(loaded?.projectsSearchQuery ?? "");
+
+  const handleDragStart = () => {
+    // Drag started - handled by browser drag API
+  };
+
+  // Persist state to localStorage (debounced) so refresh doesn't lose work.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const payload: PersistedState = {
+        students,
+        projects,
+        projectAssignments: normalizeAssignments(projects, projectAssignments),
+        maxProjectSize,
+        autoFillMode,
+        studentsSearchQuery,
+        projectsSearchQuery,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }, 750);
+
+    return () => window.clearTimeout(handle);
+  }, [
+    students,
+    projects,
+    projectAssignments,
+    maxProjectSize,
+    autoFillMode,
+    studentsSearchQuery,
+    projectsSearchQuery,
+  ]);
+
+  const handleClearSavedData = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setStudents([]);
+    setProjects([]);
+    setProjectAssignments({});
+    setStudentsSearchQuery("");
+    setProjectsSearchQuery("");
+    setMaxProjectSize(6);
+    setAutoFillMode("firstChoiceOnly");
+    setSettingsOpen(false);
+  };
+
+  const handleExportXlsx = async () => {
+    const { header, rows } = buildRoundTripExport({
+      students,
+      projectAssignments,
     });
 
-    // Count choices and collect student names (only for unassigned students)
-    students
-      .filter((student) => !assignedStudentIds.has(student.id))
-      .forEach((student) => {
-        student.choices.forEach((choice, index) => {
-          const stats = statsMap.get(choice);
-          if (stats) {
-            const rank = index + 1; // 1-based ranking
-            const currentCount = stats.choiceCounts.get(rank) || 0;
-            const currentStudents = stats.choiceStudents.get(rank) || [];
-            
-            stats.choiceCounts.set(rank, currentCount + 1);
-            stats.choiceStudents.set(rank, [...currentStudents, student.name]);
-            stats.total++;
-          }
-        });
-      });
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
 
-    return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
-  }, [students, groups]);
+    const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    XLSX.utils.book_append_sheet(wb, sheet, "Group Maker");
 
-  const findStudentById = (id: string) => students.find((s) => s.id === id);
-
-  const onDropToGroup = (groupId: string) => {
-    if (!draggedStudentId) return;
-
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.id !== groupId) return g;
-        // Allow more than 6 students (can be manually adjusted)
-        return { ...g, students: [...g.students, draggedStudentId] };
-      })
-    );
-
-    setDraggedStudentId(null);
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `group-maker-assignments-${stamp}.xlsx`);
   };
 
-  const onRemoveFromGroup = (groupId: string, studentId: string) => {
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.id !== groupId) return g;
-        return { ...g, students: g.students.filter((id) => id !== studentId) };
-      })
-    );
-  };
-
-  const onAssignToProject = (studentId: string, projectId: string) => {
-    if (!projectId || projectId === "") return;
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.id !== projectId) return g;
-        // Check if student is already in this group
-        if (g.students.includes(studentId)) return g;
-        return { ...g, students: [...g.students, studentId] };
-      })
-    );
-  };
+  const panels: Panel[] = [
+    {
+      id: "students",
+      title: "Unassigned Students",
+      titleSuffix: <span className="header-count">({unassignedCount})</span>,
+      headerContent: (
+        <input
+          type="text"
+          placeholder="Search by name or ID..."
+          value={studentsSearchQuery}
+          onChange={(e) => setStudentsSearchQuery(e.target.value)}
+          className="header-search-input"
+        />
+      ),
+      content: (
+        <StudentsPane
+          students={students}
+          assignedStudentIds={assignedStudentIds}
+          projectAssignments={projectAssignments}
+          onDragStart={handleDragStart}
+          onUnassignedCountChange={setUnassignedCount}
+          searchQuery={studentsSearchQuery}
+        />
+      ),
+    },
+    {
+      id: "projects",
+      title: "Projects",
+      headerContent: (
+        <input
+          type="text"
+          placeholder="Search projects..."
+          value={projectsSearchQuery}
+          onChange={(e) => setProjectsSearchQuery(e.target.value)}
+          className="header-search-input"
+        />
+      ),
+      content: (
+        <ProjectsPane
+          projects={projects}
+          projectAssignments={projectAssignments}
+          students={students}
+          onStudentDrop={handleStudentDrop}
+          onStudentRemove={handleStudentRemove}
+          searchQuery={projectsSearchQuery}
+          maxChoices={Math.max(...students.map((s) => s.choices.length), 0)}
+          maxStudentsPerProject={maxProjectSize}
+        />
+      ),
+    },
+    {
+      id: "analysis",
+      title: "Project Analysis",
+      content: (
+        <AnalysisPane
+          students={students}
+          projects={projects}
+          projectAssignments={projectAssignments}
+          onAddStudentsToProject={handleAddStudentsToProject}
+        />
+      ),
+    },
+  ];
 
   return (
-    <div className="app-container">
+    <div className="main-app">
       <header className="app-header">
-        <h1>Group Maker</h1>
+        <h1 className="app-title">Group Maker</h1>
         <div className="header-actions">
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              file.text().then(parseCSV);
-            }}
-            className="file-input"
-          />
-          <button onClick={saveToLocalStorage} className="save-btn">
-            💾 Save Progress
+          <div className="header-upload">
+            <CSVUpload onUpload={handleCSVUpload} />
+          </div>
+          <button
+            className="settings-btn"
+            onClick={handleExportXlsx}
+            title="Export assignments to XLSX"
+            type="button"
+          >
+            <Download size={16} />
           </button>
-          {groups.length > 0 && (
-            <button onClick={exportGroupings} className="export-btn">
-              📤 Export Groupings
-            </button>
-          )}
-          <label className="import-btn-label">
-            <input
-              type="file"
-              accept=".json"
-              onChange={importGroupings}
-              style={{ display: "none" }}
-            />
-            <span className="import-btn">📥 Import Groupings</span>
-          </label>
-          {(students.length > 0 || groups.length > 0) && (
-            <button onClick={clearLocalStorage} className="clear-btn">
-              🗑️ Clear Data
-            </button>
-          )}
+          <button
+            className="settings-btn"
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+            type="button"
+          >
+            <Settings size={16} />
+          </button>
         </div>
       </header>
-
-      <div className="main-layout">
-        {/* LEFT HALF - Current Content */}
-        <div className="left-panel">
-          <div className="panel-section">
-            <h3>Unassigned Students</h3>
-            <input
-              type="text"
-              placeholder="Search by name, NetID, or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-input"
-            />
-            <div className="student-list">
-              {unassignedStudents.length === 0 ? (
-                <p className="empty-state">
-                  {searchQuery.trim()
-                    ? "No students found matching your search"
-                    : "No unassigned students"}
-                </p>
-              ) : (
-                unassignedStudents.map((s) => (
-                  <div
-                    key={s.id}
-                    draggable
-                    onDragStart={() => setDraggedStudentId(s.id)}
-                    className="student-card"
-                  >
-                    <div className="student-info">
-                      <div className="student-name">{s.name}</div>
-                      <div className="student-netid">{s.netid}</div>
-                      <div className="student-choices">
-                        {s.choices.length > 0
-                          ? s.choices.map((choice, idx) => `${idx + 1}. ${choice}`).join(" • ")
-                          : "No choices listed"}
-                      </div>
-                    </div>
-                    <select
-                      className="project-select"
-                      value=""
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        onAssignToProject(s.id, e.target.value);
-                        e.target.value = ""; // Reset dropdown
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      draggable={false}
-                    >
-                      <option value="">Assign to project...</option>
-                      {groups.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.project} ({g.students.length}/6{g.students.length > 6 ? " ⚠️" : ""})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="panel-section">
-            <h3>Project Groups</h3>
-            <div className="projects-grid">
-              {groups.map((g) => (
-                <div
-                  key={g.id}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => onDropToGroup(g.id)}
-                  className={`project-box ${
-                    g.students.length > 6
-                      ? "project-overflow"
-                      : g.students.length === 6
-                        ? "project-full"
-                        : ""
-                  }`}
-                >
-                  <div className="project-header">
-                    <h4 className="project-title">{g.project}</h4>
-                    <span
-                      className={`project-count ${
-                        g.students.length > 6 ? "project-count-overflow" : ""
-                      }`}
-                    >
-                      {g.students.length}/6{g.students.length > 6 ? " ⚠️" : ""}
-                    </span>
-                  </div>
-                  <div className="project-students">
-                    {g.students.length === 0 ? (
-                      <p className="empty-state-small">Drop students here</p>
-                    ) : (
-                      g.students.map((id) => {
-                        const s = findStudentById(id);
-                        if (!s) return null;
-                        return (
-                          <div key={id} className="project-student">
-                            <span
-                              className="student-name-hoverable"
-                              onMouseEnter={() => setHoveredStudent(s)}
-                              onMouseLeave={() => setHoveredStudent(null)}
-                            >
-                              {s.name}
-                            </span>
-                            {hoveredStudent?.id === s.id && (
-                              <div className="student-tooltip">
-                                <div className="tooltip-content">
-                                  <div className="tooltip-detail">
-                                    {s.name} ({s.netid})
-                                  </div>
-                                  <div className="tooltip-choices">
-                                    {s.choices.map((choice, idx) => (
-                                      <div key={idx} className="tooltip-choice-item">
-                                        {idx + 1}. {choice}
-                                      </div>
-                                    ))}
-                                    {s.choices.length === 0 && (
-                                      <div className="tooltip-choice-item">No choices listed</div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            <button
-                              onClick={() => onRemoveFromGroup(g.id, id)}
-                              className="remove-btn"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT HALF - Data Analysis */}
-        <div className="right-panel">
-          <h3>Project Analysis</h3>
-          {projectStats.length === 0 ? (
-            <p className="empty-state">Upload a CSV file to see analysis</p>
-          ) : (
-            <div className="analysis-content">
-              <div className="stats-table">
-                {(() => {
-                  // Calculate max number of choices across all students
-                  const maxChoices = Math.max(...students.map((s) => s.choices.length), 0);
-                  const choiceRanks = Array.from({ length: maxChoices }, (_, i) => i + 1);
-                  
-                  const getOrdinal = (n: number) => {
-                    const s = ["th", "st", "nd", "rd"];
-                    const v = n % 100;
-                    return n + (s[(v - 20) % 10] || s[v] || s[0]);
-                  };
-
-                  // Calculate displayed total for each stat and sort
-                  const sortedStats = [...projectStats].sort((a, b) => {
-                    const totalA = totalUpToRank
-                      ? Array.from({ length: totalUpToRank }, (_, i) => i + 1).reduce(
-                          (sum, rank) => sum + (a.choiceCounts.get(rank) || 0),
-                          0
-                        )
-                      : a.total;
-                    const totalB = totalUpToRank
-                      ? Array.from({ length: totalUpToRank }, (_, i) => i + 1).reduce(
-                          (sum, rank) => sum + (b.choiceCounts.get(rank) || 0),
-                          0
-                        )
-                      : b.total;
-                    return totalB - totalA; // Sort greatest to least
-                  });
-
-                  return (
-                    <>
-                      <div
-                        className="stats-header"
-                        style={{
-                          gridTemplateColumns: `2fr repeat(${maxChoices}, 0.8fr) 1fr`,
-                        }}
-                      >
-                        <div className="stat-col project-col">Project</div>
-                        {choiceRanks.map((rank) => (
-                          <button
-                            key={rank}
-                            className={`stat-col choice-header-btn ${
-                              totalUpToRank === rank ? "choice-header-btn-selected" : ""
-                            }`}
-                            onClick={() => setTotalUpToRank(totalUpToRank === rank ? null : rank)}
-                            title={`Click to sum total up to ${getOrdinal(rank)} choice`}
-                          >
-                            {getOrdinal(rank)}
-                          </button>
-                        ))}
-                        <div className="stat-col total-col">
-                          Total{totalUpToRank ? ` (up to ${getOrdinal(totalUpToRank)})` : ""}
-                        </div>
-                      </div>
-                      {sortedStats.map((stat) => {
-                        const firstChoiceCount = stat.choiceCounts.get(1) || 0;
-                        const maxFirstChoice = Math.max(
-                          ...projectStats.map((s) => s.choiceCounts.get(1) || 0),
-                          0
-                        );
-                        return (
-                          <div
-                            key={stat.project}
-                            className={`stats-row ${stat.total === 0 ? "no-choices" : ""} ${
-                              firstChoiceCount === maxFirstChoice && maxFirstChoice > 0
-                                ? "most-popular"
-                                : ""
-                            }`}
-                            style={{
-                              gridTemplateColumns: `2fr repeat(${maxChoices}, 0.8fr) 1fr`,
-                            }}
-                          >
-                            <div className="stat-col project-col">{stat.project}</div>
-                            {choiceRanks.map((rank) => {
-                              const count = stat.choiceCounts.get(rank) || 0;
-                              const students = stat.choiceStudents.get(rank) || [];
-                              return (
-                                <div
-                                  key={rank}
-                                  className="stat-col stat-col-hoverable"
-                                  onMouseEnter={() =>
-                                    setHoveredTooltip({
-                                      project: stat.project,
-                                      choice: rank,
-                                      students,
-                                    })
-                                  }
-                                  onMouseLeave={() => setHoveredTooltip(null)}
-                                >
-                                  {count}
-                                  {hoveredTooltip?.project === stat.project &&
-                                    hoveredTooltip?.choice === rank && (
-                                      <div className="tooltip">
-                                        <div className="tooltip-title">
-                                          {getOrdinal(rank)} Choice Students:
-                                        </div>
-                                        <div className="tooltip-content">
-                                          {students.length > 0 ? students.join(", ") : "None"}
-                                        </div>
-                                      </div>
-                                    )}
-                                </div>
-                              );
-                            })}
-                            <div className="stat-col total-col">
-                              {totalUpToRank
-                                ? Array.from({ length: totalUpToRank }, (_, i) => i + 1).reduce(
-                                    (sum, rank) => sum + (stat.choiceCounts.get(rank) || 0),
-                                    0
-                                  )
-                                : stat.total}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
-              </div>
-
-              <div className="analysis-summary">
-                <div className="summary-card">
-                  <h4>Most Popular (1st Choice)</h4>
-                  <p className="summary-value">
-                    {projectStats.length > 0
-                      ? (() => {
-                          const firstChoiceStats = projectStats
-                            .map((s) => ({
-                              project: s.project,
-                              count: s.choiceCounts.get(1) || 0,
-                            }))
-                            .filter((s) => s.count > 0)
-                            .sort((a, b) => b.count - a.count);
-                          return firstChoiceStats[0]?.project || "N/A";
-                        })()
-                      : "N/A"}
-                  </p>
-                  <p className="summary-count">
-                    {projectStats.length > 0
-                      ? Math.max(...projectStats.map((s) => s.choiceCounts.get(1) || 0))
-                      : 0}{" "}
-                    first choice
-                    {Math.max(...projectStats.map((s) => s.choiceCounts.get(1) || 0)) !== 1
-                      ? "s"
-                      : ""}
-                  </p>
-                </div>
-
-                <div className="summary-card">
-                  <h4>Unwanted Projects</h4>
-                  <div className="unwanted-list">
-                    {projectStats
-                      .filter((s) => s.total === 0)
-                      .map((s) => (
-                        <span key={s.project} className="unwanted-tag">
-                          {s.project}
-                        </span>
-                      ))}
-                    {projectStats.filter((s) => s.total === 0).length === 0 && (
-                      <p className="no-unwanted">All projects have at least one choice</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="app-content">
+        <SimpleToggleLayout panels={panels} />
       </div>
+
+      {settingsOpen && (
+        <div className="settings-backdrop" onClick={() => setSettingsOpen(false)}>
+          <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-header">
+              <h2 className="settings-title">Settings</h2>
+              <button
+                className="settings-close"
+                onClick={() => setSettingsOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="settings-body">
+              <label className="settings-row">
+                <span className="settings-label">Max project size</span>
+                <input
+                  className="settings-input"
+                  type="number"
+                  min={1}
+                  value={maxProjectSize}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    setMaxProjectSize(Number.isFinite(next) ? Math.max(1, next) : 1);
+                  }}
+                />
+              </label>
+
+              <div className="settings-spacer" />
+
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-label">Auto-fill algorithm</span>
+                  <div className="settings-help">
+                    {autoFillMode === "minFillGreedyRepair"
+                      ? "Greedy + repair with a 60% minimum-fill rule: uses a subset of projects, seeds each used project to ≥60% full, then improves preference satisfaction with quick swaps."
+                      : autoFillMode === "firstChoiceOnly"
+                        ? "Simple: assigns each student to their 1st choice (if capacity allows). Everything else is left for manual fixes."
+                        : "No auto-fill: starts with all students unassigned."}
+                  </div>
+                </div>
+                <select
+                  className="settings-input settings-select"
+                  value={autoFillMode}
+                  onChange={(e) => setAutoFillMode(e.target.value as AutoFillMode)}
+                >
+                  <option value="none">No auto-fill</option>
+                  <option value="minFillGreedyRepair">Greedy + repair (min-fill)</option>
+                  <option value="firstChoiceOnly">Simple (1st choice only)</option>
+                </select>
+              </div>
+
+              <div className="settings-spacer" />
+
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-label">Reset</span>
+                  <div className="settings-help">
+                    Clears saved data from this browser (students, projects, assignments, and settings).
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="settings-danger-btn"
+                  onClick={handleClearSavedData}
+                >
+                  Clear saved data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,164 @@
+.simple-panel-layout {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  background: #0a0a0a;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  overflow: hidden;
+  min-width: 200px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  background: #fafafa;
+  overflow: hidden;
+  min-width: 200px;
+}
+
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 100px;
+}
+
+.panel-header {
+  padding: 0.5rem 0.75rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.panel-content {
+  flex: 1;
+  overflow: auto;
+  padding: 0.75rem;
+  background: #ffffff;
+}
+
+.right-panel .panel-content {
+  background: #fafafa;
+}
+
+/* Dividers */
+.divider {
+  background: #e5e7eb;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+  z-index: 10;
+}
+
+.divider:hover {
+  background: #3b82f6;
+}
+
+.divider.dragging {
+  background: #3b82f6;
+}
+
+.horizontal-divider {
+  width: 1px;
+  cursor: col-resize;
+  min-width: 1px;
+  background: #e5e7eb;
+}
+
+.horizontal-divider:hover {
+  width: 3px;
+  background: #3b82f6;
+}
+
+.horizontal-divider.dragging {
+  width: 3px;
+  background: #3b82f6;
+}
+
+.vertical-divider {
+  height: 1px;
+  cursor: row-resize;
+  min-height: 1px;
+  width: 100%;
+  background: #e5e7eb;
+}
+
+.vertical-divider:hover {
+  height: 3px;
+  background: #3b82f6;
+}
+
+.vertical-divider.dragging {
+  height: 3px;
+  background: #3b82f6;
+}
+
+.divider-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 3px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.divider:hover .divider-handle,
+.divider.dragging .divider-handle {
+  opacity: 1;
+}
+
+.horizontal-divider .divider-handle {
+  width: 2px;
+  height: 32px;
+}
+
+.vertical-divider .divider-handle {
+  width: 32px;
+  height: 2px;
+}
+
+/* Scrollbar styling - modern and minimal */
+.panel-content::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.panel-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel-content::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.panel-content::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Firefox scrollbar */
+.panel-content {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
