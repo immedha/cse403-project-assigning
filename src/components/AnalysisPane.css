@@ -52,6 +52,49 @@
   margin-top: 0.5rem;
 }
 
+.teams-summary-scroll-wrap {
+  position: relative;
+}
+
+.teams-summary-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 0.25rem; /* room for scrollbar */
+}
+
+.teams-summary-scroll-has-more::after {
+  content: "";
+  position: sticky;
+  display: block;
+  bottom: 0;
+  height: 28px;
+  margin-top: -28px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(249, 250, 251, 0), rgba(249, 250, 251, 1));
+}
+
+.teams-summary-scroll-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  font-size: 0.6875rem;
+  color: #6b7280;
+  background: rgba(249, 250, 251, 0.92);
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  pointer-events: none;
+}
+
+.teams-summary-scroll-hint-arrow {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
 .teams-summary-title {
   font-size: 0.6875rem;
   font-weight: 700;

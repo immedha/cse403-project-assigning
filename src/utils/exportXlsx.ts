@@ -1,7 +1,9 @@
 import type { StudentLike } from "./autoAssign";
+git
+type ExportStudent = StudentLike & { teammateIds?: string[] };
 
 export function buildRoundTripExport(params: {
-  students: StudentLike[];
+  students: ExportStudent[];
   projectAssignments: Record<string, string[]>;
 }) {
   const { students, projectAssignments } = params;
@@ -14,23 +16,27 @@ export function buildRoundTripExport(params: {
   });
 
   const maxChoices = Math.max(...students.map((s) => s.choices.length), 0);
+  const maxTeamMembers = Math.max(...students.map((s) => (s.teammateIds ?? []).length), 0);
   const header = [
-    "Assigned Project",
     "Name",
     "Id",
     ...Array.from({ length: maxChoices }, (_, i) => `Choice ${i + 1}`),
+    ...Array.from({ length: maxTeamMembers }, (_, i) => `Team Member ${i + 1}`),
+    "Assigned Project",
   ];
 
   const rows: Array<Array<string>> = students.map((s) => {
     const assignedProject = studentToProject.get(s.id) ?? "";
     const choices = Array.from({ length: maxChoices }, (_, i) => s.choices[i] ?? "");
-    return [assignedProject, s.name, s.id, ...choices];
+    const teammateIds = Array.from({ length: maxTeamMembers }, (_, i) => s.teammateIds?.[i] ?? "");
+    return [s.name, s.id, ...choices, ...teammateIds, assignedProject];
   });
 
   rows.sort((a, b) => {
-    const byProject = (a[0] || "").localeCompare(b[0] || "");
+    // Assigned Project is last column.
+    const byProject = (a[a.length - 1] || "").localeCompare(b[b.length - 1] || "");
     if (byProject !== 0) return byProject;
-    return (a[1] || "").localeCompare(b[1] || "");
+    return (a[0] || "").localeCompare(b[0] || "");
   });
 
   return { header, rows };

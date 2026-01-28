@@ -23,6 +23,43 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const infoRef = useRef<HTMLButtonElement>(null);
 
+  const normalizeHeader = (h: string) => h.toLowerCase().replace(/\s+/g, " ").trim();
+
+  const extractFirstNumber = (h: string): number | null => {
+    const m = h.match(/(\d+)/);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  type HeaderKind = "team_member" | "choice" | "id" | "name" | "other";
+  const classifyHeader = (header: string): { kind: HeaderKind; number: number | null } => {
+    const norm = normalizeHeader(header);
+    const number = extractFirstNumber(norm);
+
+    const hasTeamWord = /\bteam\b/i.test(norm);
+    const hasMemberWord = /\bmember\b/i.test(norm);
+    const hasChoiceWord = /\bchoice\b/i.test(norm);
+    const hasNameWord = /\bname\b/i.test(norm) || norm.includes("name");
+    const hasNetId = /net\s*id/i.test(norm) || /\bnetid\b/i.test(norm);
+    const hasIdWord = /\bid\b/i.test(norm) || norm === "id";
+
+    // Priority order (to avoid confusion):
+    // 1) team member + number (covers "Team Member #1 Netid" and "Team Member #1 Choice")
+    // 2) choice + number (covers "First (1) choice", "Choice #1", etc.)
+    // 3) netid/id (but only if not a team-member/choice column)
+    // 4) name (but only if not a team-member/choice/id column)
+    if (hasTeamWord && hasMemberWord && number != null) return { kind: "team_member", number };
+    if (hasChoiceWord && number != null) return { kind: "choice", number };
+    if ((hasNetId || hasIdWord) && !(hasTeamWord && hasMemberWord) && !hasChoiceWord) {
+      return { kind: "id", number: null };
+    }
+    if (hasNameWord && !(hasTeamWord && hasMemberWord) && !hasChoiceWord && !hasNetId && !hasIdWord) {
+      return { kind: "name", number: null };
+    }
+    return { kind: "other", number: null };
+  };
+
   const handleFile = (file: File) => {
     if (!file.name.endsWith(".csv")) {
       setError("Please upload a CSV file");
@@ -52,32 +89,28 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
         return;
       }
 
-      // Find Name column (case-insensitive, flexible matching)
-      const nameColumn = findColumn(rows[0], ["name", "student name", "student"]);
+      const headers = Object.keys(rows[0]);
+      const classified = headers.map((h) => ({ header: h, ...classifyHeader(h) }));
+
+      // Find Name column: classified as name
+      const nameColumn = classified.find((x) => x.kind === "name")?.header ?? null;
       if (!nameColumn) {
         setError("Could not find 'Name' column in CSV");
         return;
       }
 
-      // Find Id column (case-insensitive, flexible matching)
-      const idColumn = findColumn(rows[0], ["id", "student id", "netid", "net id", "student id"]);
+      // Find Id column: classified as id (netid/id), but never a team-member/choice column
+      const idColumn = classified.find((x) => x.kind === "id")?.header ?? null;
       if (!idColumn) {
         setError("Could not find 'Id' column in CSV");
         return;
       }
 
-      // Find all Choice columns (Choice #1, Choice #2, Choice 1, Choice1, etc.)
+      // Find all Choice columns: contains "choice" and a number anywhere
       const choiceColumns: { column: string; number: number }[] = [];
-      const headers = Object.keys(rows[0]);
-
-      headers.forEach((header) => {
-        const lowerHeader = header.toLowerCase().trim();
-        // Match patterns like "Choice #1", "Choice 1", "Choice1", "choice #1", etc.
-        const match = lowerHeader.match(/choice\s*#?\s*(\d+)/i);
-        if (match) {
-          const number = parseInt(match[1], 10);
-          choiceColumns.push({ column: header, number });
-        }
+      classified.forEach((x) => {
+        if (x.kind !== "choice" || x.number == null) return;
+        choiceColumns.push({ column: x.header, number: x.number });
       });
 
       // Sort by choice number
@@ -88,23 +121,36 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
         return;
       }
 
-      // Optional: Assigned Project column (case-insensitive exact match)
-      const assignedProjectColumn = findColumn(rows[0], [
-        "assigned project",
-        "assigned_project",
-        "assigned",
-      ]);
-
-      // Optional: Team Member columns (Team Member 1/2/..., case-insensitive flexible match)
+      // Optional: Team Member columns: contains both "team" and "member" and a number anywhere
       const teamMemberColumns: { column: string; number: number }[] = [];
-      headers.forEach((header) => {
-        const lowerHeader = header.toLowerCase().trim();
-        const match = lowerHeader.match(/team\s*member\s*#?\s*(\d+)/i);
-        if (match) {
-          teamMemberColumns.push({ column: header, number: parseInt(match[1], 10) });
-        }
+      classified.forEach((x) => {
+        if (x.kind !== "team_member" || x.number == null) return;
+        teamMemberColumns.push({ column: x.header, number: x.number });
       });
       teamMemberColumns.sort((a, b) => a.number - b.number);
+
+      // Optional: Assigned Project column (detected LAST to avoid confusion with other fields)
+      const used = new Set<string>([
+        nameColumn,
+        idColumn,
+        ...choiceColumns.map((c) => c.column),
+        ...teamMemberColumns.map((c) => c.column),
+      ]);
+      const assignedProjectColumn =
+        headers.find((h) => {
+          if (used.has(h)) return false;
+          const norm = normalizeHeader(h);
+          const hasAssigned = /\bassigned\b/i.test(norm);
+          const hasProject = /\bproject\b/i.test(norm);
+          return hasAssigned && hasProject;
+        }) ??
+        headers.find((h) => {
+          if (used.has(h)) return false;
+          const norm = normalizeHeader(h);
+          return /\bassigned\b/i.test(norm);
+        }) ??
+        // Backward-compatible exact matches
+        findColumn(rows[0], ["assigned project", "assigned_project", "assigned"]);
 
       // Parse students
       const students = rows.map((row, idx) => {

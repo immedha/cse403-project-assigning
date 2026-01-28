@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Smile, Meh, Frown } from "lucide-react";
 import Tooltip from "./Tooltip";
 import "./AnalysisPane.css";
@@ -39,6 +39,8 @@ export default function AnalysisPane({
   } | null>(null);
   const [totalUpToRank, setTotalUpToRank] = useState<number | null>(null); // null means all ranks
   const [showTeamDetails, setShowTeamDetails] = useState(true);
+  const teamsScrollRef = useRef<HTMLDivElement>(null);
+  const [teamsCanScrollDown, setTeamsCanScrollDown] = useState(false);
 
   const assignedStudentIds = useMemo(() => {
     const assigned = new Set<string>();
@@ -184,6 +186,30 @@ export default function AnalysisPane({
     0
   );
 
+  const recomputeTeamsScrollHint = () => {
+    const el = teamsScrollRef.current;
+    if (!el) return;
+    const canScroll = el.scrollHeight > el.clientHeight + 1;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    setTeamsCanScrollDown(canScroll && !atBottom);
+  };
+
+  useEffect(() => {
+    recomputeTeamsScrollHint();
+    // Recompute after paint and on resize; scrollHeight can change with fonts/layout.
+    const t = window.setTimeout(recomputeTeamsScrollHint, 0);
+    window.addEventListener("resize", recomputeTeamsScrollHint);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", recomputeTeamsScrollHint);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    showTeamDetails,
+    teamsInfo.teams.length,
+    unenforceableEntries.length,
+  ]);
+
   return (
     <div className="analysis-pane">
       {satisfactionStats.total > 0 && (
@@ -212,12 +238,19 @@ export default function AnalysisPane({
           </button>
         </div>
         {showTeamDetails && (
-          <div className="teams-summary-details">
+          <div className="teams-summary-scroll-wrap">
+            <div
+              ref={teamsScrollRef}
+              className={`teams-summary-details teams-summary-scroll ${
+                teamsCanScrollDown ? "teams-summary-scroll-has-more" : ""
+              }`}
+              onScroll={recomputeTeamsScrollHint}
+            >
             {teamsInfo.teams.length > 0 ? (
               <div className="teams-summary-block">
                 <div className="teams-summary-title">Enforceable teams (mutual + identical rankings)</div>
                 <ul className="teams-summary-list">
-                  {teamsInfo.teams.slice(0, 10).map((t, idx) => (
+                  {teamsInfo.teams.map((t, idx) => (
                     <li key={t.memberIds.join("|")}>
                       <span
                         className="analysis-team-pill"
@@ -232,9 +265,6 @@ export default function AnalysisPane({
                     </li>
                   ))}
                 </ul>
-                {teamsInfo.teams.length > 10 && (
-                  <div className="teams-summary-more">…and {teamsInfo.teams.length - 10} more</div>
-                )}
               </div>
             ) : (
               <div className="teams-summary-block">
@@ -247,17 +277,19 @@ export default function AnalysisPane({
               <div className="teams-summary-block">
                 <div className="teams-summary-title">Unenforceable requests</div>
                 <ul className="teams-summary-list">
-                  {unenforceableEntries.slice(0, 12).map((e, idx) => (
+                  {unenforceableEntries.map((e, idx) => (
                     <li key={`${e.studentName}-${e.teammateNames}-${idx}`}>
                       {e.studentName} → {e.teammateNames}
                     </li>
                   ))}
                 </ul>
-                {unenforceableEntries.length > 12 && (
-                  <div className="teams-summary-more">
-                    …and {unenforceableEntries.length - 12} more
-                  </div>
-                )}
+              </div>
+            )}
+            </div>
+            {teamsCanScrollDown && (
+              <div className="teams-summary-scroll-hint" aria-hidden="true">
+                Scroll for more
+                <span className="teams-summary-scroll-hint-arrow">↓</span>
               </div>
             )}
           </div>
