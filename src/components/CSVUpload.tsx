@@ -10,6 +10,7 @@ interface CSVUploadProps {
       choices: string[];
     }>;
     projects: string[];
+    projectAssignments?: Record<string, string[]>;
   }) => void;
 }
 
@@ -83,6 +84,13 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
         return;
       }
 
+      // Optional: Assigned Project column (case-insensitive exact match)
+      const assignedProjectColumn = findColumn(rows[0], [
+        "assigned project",
+        "assigned_project",
+        "assigned",
+      ]);
+
       // Parse students
       const students = rows.map((row, idx) => {
         const choices = choiceColumns
@@ -97,15 +105,29 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
         };
       });
 
-      // Extract all unique projects from choices
+      // Extract all unique projects from choices (+ optional assigned project)
       const projectsSet = new Set<string>();
       students.forEach((s) => {
         s.choices.forEach((choice) => projectsSet.add(choice));
       });
 
+      const initialAssignments: Record<string, string[]> = {};
+      if (assignedProjectColumn) {
+        rows.forEach((row, idx) => {
+          const id = String(row[idColumn] || idx);
+          const rawAssigned = row[assignedProjectColumn];
+          const assigned = rawAssigned ? String(rawAssigned).trim() : "";
+          if (!assigned) return;
+          projectsSet.add(assigned);
+          if (!initialAssignments[assigned]) initialAssignments[assigned] = [];
+          initialAssignments[assigned].push(id);
+        });
+      }
+
       onUpload({
         students,
         projects: Array.from(projectsSet),
+        projectAssignments: assignedProjectColumn ? initialAssignments : undefined,
       });
 
       setError(null);
@@ -167,8 +189,10 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
           style={{ display: "none" }}
         />
         <span className="upload-icon">📄</span>
-        <span className="upload-label">Upload CSV (Columns: "Name", "Id", "Choice 1", "Choice 2", etc.)</span>
-
+        <span className="upload-label">
+          Upload CSV (Columns: "Name", "Id", "Choice 1", "Choice 2", etc, <br />
+          Optional: "Assigned Project")
+        </span>
       </div>
       {error && <div className="upload-error-inline">{error}</div>}
     </div>

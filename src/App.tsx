@@ -7,7 +7,7 @@ import ProjectsPane from "./components/ProjectsPane";
 import AnalysisPane from "./components/AnalysisPane";
 import { Download, Settings } from "lucide-react";
 import { autoAssign, type AutoFillMode } from "./utils/autoAssign";
-import { buildAssignmentsExport } from "./utils/exportXlsx";
+import { buildRoundTripExport } from "./utils/exportXlsx";
 import "./components/Layout/MainApp.css";
 import "./components/AnalysisPane.css";
 
@@ -90,17 +90,25 @@ export default function MainApp() {
   const handleCSVUpload = (data: {
     students: Student[];
     projects: string[];
+    projectAssignments?: Record<string, string[]>;
   }) => {
     setStudents(data.students);
     setProjects(data.projects);
-    const initialAssignments = autoAssign({
-      mode: autoFillMode,
-      students: data.students,
-      projects: data.projects,
-      capacity: Math.max(1, maxProjectSize),
-      seed: 1,
-    });
-    setProjectAssignments(initialAssignments);
+    if (data.projectAssignments) {
+      // If input includes Assigned Project, trust it as the starting state.
+      setProjectAssignments(data.projectAssignments);
+      return;
+    }
+
+    setProjectAssignments(
+      autoAssign({
+        mode: autoFillMode,
+        students: data.students,
+        projects: data.projects,
+        capacity: Math.max(1, maxProjectSize),
+        seed: 1,
+      })
+    );
   };
 
   const assignedStudentIds = useMemo(() => {
@@ -225,7 +233,7 @@ export default function MainApp() {
   };
 
   const handleExportXlsx = async () => {
-    const { assignedRows, unassignedRows } = buildAssignmentsExport({
+    const { header, rows } = buildRoundTripExport({
       students,
       projectAssignments,
     });
@@ -233,19 +241,8 @@ export default function MainApp() {
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
 
-    const assignedSheet = XLSX.utils.aoa_to_sheet([
-      ["Project", "Name", "ID"],
-      ...assignedRows,
-    ]);
-    XLSX.utils.book_append_sheet(wb, assignedSheet, "Assignments");
-
-    if (unassignedRows.length > 0) {
-      const unassignedSheet = XLSX.utils.aoa_to_sheet([
-        ["Name", "ID"],
-        ...unassignedRows,
-      ]);
-      XLSX.utils.book_append_sheet(wb, unassignedSheet, "Unassigned Students");
-    }
+    const sheet = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    XLSX.utils.book_append_sheet(wb, sheet, "Group Maker");
 
     const stamp = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(wb, `group-maker-assignments-${stamp}.xlsx`);
