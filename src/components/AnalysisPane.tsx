@@ -38,7 +38,7 @@ export default function AnalysisPane({
     element: HTMLElement | null;
   } | null>(null);
   const [totalUpToRank, setTotalUpToRank] = useState<number | null>(null); // null means all ranks
-  const [showTeamDetails, setShowTeamDetails] = useState(true);
+  const [showTeamDetails, setShowTeamDetails] = useState(false);
   const teamsScrollRef = useRef<HTMLDivElement>(null);
   const [teamsCanScrollDown, setTeamsCanScrollDown] = useState(false);
 
