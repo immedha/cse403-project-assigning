@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SimpleToggleLayout from "./components/Layout/SimpleToggleLayout";
 import type { Panel } from "./components/Layout/SimpleToggleLayout";
 import CSVUpload from "./components/CSVUpload";
@@ -17,13 +17,74 @@ export type Student = {
   choices: string[];
 };
 
+const STORAGE_KEY = "group-maker:v1";
+
+type PersistedState = {
+  students: Student[];
+  projects: string[];
+  projectAssignments: Record<string, string[]>;
+  maxProjectSize: number;
+  autoFillMode: AutoFillMode;
+  studentsSearchQuery: string;
+  projectsSearchQuery: string;
+};
+
+function safeParsePersistedState(raw: string | null): PersistedState | null {
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw) as Partial<PersistedState>;
+    if (!data || typeof data !== "object") return null;
+    if (!Array.isArray(data.students) || !Array.isArray(data.projects)) return null;
+    if (!data.projectAssignments || typeof data.projectAssignments !== "object") return null;
+    if (typeof data.maxProjectSize !== "number") return null;
+    if (typeof data.autoFillMode !== "string") return null;
+    if (typeof data.studentsSearchQuery !== "string") return null;
+    if (typeof data.projectsSearchQuery !== "string") return null;
+    return data as PersistedState;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAssignments(
+  projects: string[],
+  projectAssignments: Record<string, string[]>
+): Record<string, string[]> {
+  const next: Record<string, string[]> = {};
+  const studentIdsSeen = new Set<string>();
+
+  // Ensure every project has an array and remove duplicates across projects.
+  for (const project of projects) {
+    const ids = Array.isArray(projectAssignments[project]) ? projectAssignments[project] : [];
+    const filtered: string[] = [];
+    for (const id of ids) {
+      if (typeof id !== "string") continue;
+      if (studentIdsSeen.has(id)) continue;
+      studentIdsSeen.add(id);
+      filtered.push(id);
+    }
+    next[project] = filtered;
+  }
+  return next;
+}
+
 export default function MainApp() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [projects, setProjects] = useState<string[]>([]);
+  const loaded = safeParsePersistedState(localStorage.getItem(STORAGE_KEY));
+
+  const [students, setStudents] = useState<Student[]>(loaded?.students ?? []);
+  const [projects, setProjects] = useState<string[]>(loaded?.projects ?? []);
   // Track assignments: project name -> array of student IDs
-  const [projectAssignments, setProjectAssignments] = useState<Record<string, string[]>>({});
-  const [maxProjectSize, setMaxProjectSize] = useState(6);
-  const [autoFillMode, setAutoFillMode] = useState<AutoFillMode>("firstChoiceOnly");
+  const [projectAssignments, setProjectAssignments] = useState<Record<string, string[]>>(
+    loaded?.projects && loaded?.projectAssignments
+      ? normalizeAssignments(loaded.projects, loaded.projectAssignments)
+      : {}
+  );
+  const [maxProjectSize, setMaxProjectSize] = useState(
+    Number.isFinite(loaded?.maxProjectSize) ? Math.max(1, loaded!.maxProjectSize) : 6
+  );
+  const [autoFillMode, setAutoFillMode] = useState<AutoFillMode>(
+    (loaded?.autoFillMode as AutoFillMode) ?? "firstChoiceOnly"
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleCSVUpload = (data: {
@@ -118,11 +179,49 @@ export default function MainApp() {
   };
 
   const [unassignedCount, setUnassignedCount] = useState(0);
-  const [studentsSearchQuery, setStudentsSearchQuery] = useState("");
-  const [projectsSearchQuery, setProjectsSearchQuery] = useState("");
+  const [studentsSearchQuery, setStudentsSearchQuery] = useState(loaded?.studentsSearchQuery ?? "");
+  const [projectsSearchQuery, setProjectsSearchQuery] = useState(loaded?.projectsSearchQuery ?? "");
 
   const handleDragStart = () => {
     // Drag started - handled by browser drag API
+  };
+
+  // Persist state to localStorage (debounced) so refresh doesn't lose work.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const payload: PersistedState = {
+        students,
+        projects,
+        projectAssignments: normalizeAssignments(projects, projectAssignments),
+        maxProjectSize,
+        autoFillMode,
+        studentsSearchQuery,
+        projectsSearchQuery,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    }, 750);
+
+    return () => window.clearTimeout(handle);
+  }, [
+    students,
+    projects,
+    projectAssignments,
+    maxProjectSize,
+    autoFillMode,
+    studentsSearchQuery,
+    projectsSearchQuery,
+  ]);
+
+  const handleClearSavedData = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setStudents([]);
+    setProjects([]);
+    setProjectAssignments({});
+    setStudentsSearchQuery("");
+    setProjectsSearchQuery("");
+    setMaxProjectSize(6);
+    setAutoFillMode("firstChoiceOnly");
+    setSettingsOpen(false);
   };
 
   const handleExportXlsx = async () => {
@@ -297,6 +396,24 @@ export default function MainApp() {
                   <option value="minFillGreedyRepair">Greedy + repair (min-fill)</option>
                   <option value="firstChoiceOnly">Simple (1st choice only)</option>
                 </select>
+              </div>
+
+              <div className="settings-spacer" />
+
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-label">Reset</span>
+                  <div className="settings-help">
+                    Clears saved data from this browser (students, projects, assignments, and settings).
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="settings-danger-btn"
+                  onClick={handleClearSavedData}
+                >
+                  Clear saved data
+                </button>
               </div>
             </div>
           </div>

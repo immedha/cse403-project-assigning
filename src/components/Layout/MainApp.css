@@ -148,6 +148,23 @@
   height: 0.75rem;
 }
 
+.settings-danger-btn {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.375rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-danger-btn:hover {
+  background: #ffe4e6;
+  border-color: #fca5a5;
+}
+
 .settings-input {
   width: 110px;
   padding: 0.375rem 0.5rem;
