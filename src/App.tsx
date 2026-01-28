@@ -5,8 +5,8 @@ import CSVUpload from "./components/CSVUpload";
 import StudentsPane from "./components/StudentsPane";
 import ProjectsPane, { MAX_STUDENTS_PER_PROJECT } from "./components/ProjectsPane";
 import AnalysisPane from "./components/AnalysisPane";
-import "./src/components/Layout/MainApp.css";
-import "./src/components/AnalysisPane.css";
+import "./components/Layout/MainApp.css";
+import "./components/AnalysisPane.css";
 
 export type Student = {
   id: string;
