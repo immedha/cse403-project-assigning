@@ -148,6 +148,20 @@
   height: 0.75rem;
 }
 
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.settings-toggle input {
+  width: 14px;
+  height: 14px;
+}
+
 .settings-danger-btn {
   border: 1px solid #fecaca;
   background: #fff1f2;
@@ -193,4 +207,79 @@
   text-align: center;
   color: #6b7280;
   font-size: 0.875rem;
+}
+
+.toast-container {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 100010;
+}
+
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: #111827;
+  color: #f9fafb;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.45);
+  font-size: 0.75rem;
+}
+
+.toast-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.toast-student {
+  font-weight: 600;
+}
+
+.toast-arrow {
+  opacity: 0.75;
+}
+
+.toast-project {
+  font-weight: 500;
+}
+
+.toast-subtext {
+  opacity: 0.8;
+}
+
+.toast-undo-btn {
+  border: none;
+  background: transparent;
+  color: #e5e7eb;
+  cursor: pointer;
+  padding: 0.125rem;
+  margin-left: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toast-undo-btn:hover {
+  color: #bfdbfe;
+}
+
+.toast-close-btn {
+  border: none;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 0.125rem;
+  margin-left: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toast-close-btn:hover {
+  color: #e5e7eb;
 }

@@ -5,7 +5,7 @@ import CSVUpload from "./components/CSVUpload";
 import StudentsPane from "./components/StudentsPane";
 import ProjectsPane from "./components/ProjectsPane";
 import AnalysisPane from "./components/AnalysisPane";
-import { Download, Settings } from "lucide-react";
+import { Download, Settings, X, RotateCcw } from "lucide-react";
 import { autoAssign, type AutoFillMode } from "./utils/autoAssign";
 import { buildRoundTripExport } from "./utils/exportXlsx";
 import "./components/Layout/MainApp.css";
@@ -27,6 +27,7 @@ type PersistedState = {
   autoFillMode: AutoFillMode;
   studentsSearchQuery: string;
   projectsSearchQuery: string;
+  assignmentToastsEnabled: boolean;
 };
 
 function safeParsePersistedState(raw: string | null): PersistedState | null {
@@ -40,6 +41,7 @@ function safeParsePersistedState(raw: string | null): PersistedState | null {
     if (typeof data.autoFillMode !== "string") return null;
     if (typeof data.studentsSearchQuery !== "string") return null;
     if (typeof data.projectsSearchQuery !== "string") return null;
+    if (typeof data.assignmentToastsEnabled !== "boolean") return null;
     return data as PersistedState;
   } catch {
     return null;
@@ -85,7 +87,18 @@ export default function MainApp() {
   const [autoFillMode, setAutoFillMode] = useState<AutoFillMode>(
     (loaded?.autoFillMode as AutoFillMode) ?? "firstChoiceOnly"
   );
+  const [assignmentToastsEnabled, setAssignmentToastsEnabled] = useState(
+    loaded?.assignmentToastsEnabled ?? true
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [lastAssignmentChange, setLastAssignmentChange] = useState<{
+    studentId: string;
+    studentName: string;
+    fromProject: string | null;
+    toProject: string | null;
+  } | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
   const handleCSVUpload = (data: {
     students: Student[];
@@ -97,6 +110,8 @@ export default function MainApp() {
     if (data.projectAssignments) {
       // If input includes Assigned Project, trust it as the starting state.
       setProjectAssignments(data.projectAssignments);
+      setLastAssignmentChange(null);
+      setToastVisible(false);
       return;
     }
 
@@ -109,6 +124,8 @@ export default function MainApp() {
         seed: 1,
       })
     );
+    setLastAssignmentChange(null);
+    setToastVisible(false);
   };
 
   const assignedStudentIds = useMemo(() => {
@@ -122,10 +139,16 @@ export default function MainApp() {
   const handleStudentDrop = (studentId: string, projectName: string) => {
     setProjectAssignments((prev) => {
       const newAssignments = { ...prev };
-      
+
+      // Find previous project (if any)
+      let fromProject: string | null = null;
       // Remove student from any existing project
       Object.keys(newAssignments).forEach((project) => {
-        newAssignments[project] = newAssignments[project].filter((id) => id !== studentId);
+        const ids = newAssignments[project] || [];
+        if (ids.includes(studentId)) {
+          fromProject = project;
+          newAssignments[project] = ids.filter((id) => id !== studentId);
+        }
       });
 
       // Add to new project (only if not over capacity)
@@ -135,6 +158,17 @@ export default function MainApp() {
           newAssignments[projectName] = [];
         }
         newAssignments[projectName] = [...newAssignments[projectName], studentId];
+
+        if (assignmentToastsEnabled) {
+          const student = students.find((s) => s.id === studentId);
+          setLastAssignmentChange({
+            studentId,
+            studentName: student?.name ?? "Student",
+            fromProject,
+            toProject: projectName,
+          });
+          setToastVisible(true);
+        }
       }
 
       return newAssignments;
@@ -146,6 +180,17 @@ export default function MainApp() {
       const newAssignments = { ...prev };
       if (newAssignments[projectName]) {
         newAssignments[projectName] = newAssignments[projectName].filter((id) => id !== studentId);
+      }
+
+      if (assignmentToastsEnabled) {
+        const student = students.find((s) => s.id === studentId);
+        setLastAssignmentChange({
+          studentId,
+          studentName: student?.name ?? "Student",
+          fromProject: projectName,
+          toProject: null,
+        });
+        setToastVisible(true);
       }
       return newAssignments;
     });
@@ -180,6 +225,18 @@ export default function MainApp() {
           newAssignments[projectName] = [];
         }
         newAssignments[projectName] = [...newAssignments[projectName], ...studentIdsToAdd];
+
+        if (assignmentToastsEnabled && studentIdsToAdd.length === 1) {
+          const studentId = studentIdsToAdd[0];
+          const student = students.find((s) => s.id === studentId);
+          setLastAssignmentChange({
+            studentId,
+            studentName: student?.name ?? "Student",
+            fromProject: null,
+            toProject: projectName,
+          });
+          setToastVisible(true);
+        }
       }
 
       return newAssignments;
@@ -205,6 +262,7 @@ export default function MainApp() {
         autoFillMode,
         studentsSearchQuery,
         projectsSearchQuery,
+        assignmentToastsEnabled,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     }, 750);
@@ -218,6 +276,7 @@ export default function MainApp() {
     autoFillMode,
     studentsSearchQuery,
     projectsSearchQuery,
+    assignmentToastsEnabled,
   ]);
 
   const handleClearSavedData = () => {
@@ -229,8 +288,45 @@ export default function MainApp() {
     setProjectsSearchQuery("");
     setMaxProjectSize(6);
     setAutoFillMode("firstChoiceOnly");
+    setAssignmentToastsEnabled(true);
+    setLastAssignmentChange(null);
+    setToastVisible(false);
     setSettingsOpen(false);
   };
+
+  const handleUndoLastAssignment = () => {
+    if (!lastAssignmentChange) return;
+    const { studentId, fromProject, toProject } = lastAssignmentChange;
+    setProjectAssignments((prev) => {
+      const next = { ...prev };
+      // Remove from current project if needed
+      if (toProject && next[toProject]) {
+        next[toProject] = next[toProject].filter((id) => id !== studentId);
+      }
+      // Restore to previous project if there was one
+      if (fromProject) {
+        const arr = next[fromProject] ?? [];
+        if (!arr.includes(studentId)) {
+          next[fromProject] = [...arr, studentId];
+        }
+      }
+      return next;
+    });
+    setToastVisible(false);
+  };
+
+  const handleCloseToast = () => {
+    setToastVisible(false);
+  };
+
+  // Auto-dismiss toast after 4 seconds
+  useEffect(() => {
+    if (!toastVisible || !assignmentToastsEnabled) return;
+    const timer = setTimeout(() => {
+      setToastVisible(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [toastVisible, assignmentToastsEnabled]);
 
   const handleExportXlsx = async () => {
     const { header, rows } = buildRoundTripExport({
@@ -399,6 +495,25 @@ export default function MainApp() {
 
               <div className="settings-row">
                 <div className="settings-row-left">
+                  <span className="settings-label">Assignment toasts</span>
+                  <div className="settings-help">
+                    Show a small notification with undo whenever a student is moved between projects or unassigned.
+                  </div>
+                </div>
+                <label className="settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={assignmentToastsEnabled}
+                    onChange={(e) => setAssignmentToastsEnabled(e.target.checked)}
+                  />
+                  <span>Enable</span>
+                </label>
+              </div>
+
+              <div className="settings-spacer" />
+
+              <div className="settings-row">
+                <div className="settings-row-left">
                   <span className="settings-label">Reset</span>
                   <div className="settings-help">
                     Clears saved data from this browser (students, projects, assignments, and settings).
@@ -413,6 +528,40 @@ export default function MainApp() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {assignmentToastsEnabled && toastVisible && lastAssignmentChange && (
+        <div className="toast-container">
+          <div className="toast">
+            <div className="toast-text">
+              <span className="toast-student">{lastAssignmentChange.studentName}</span>
+              <span className="toast-arrow">→</span>
+              <span className="toast-project">
+                {lastAssignmentChange.toProject ?? "Unassigned"}
+              </span>
+              {lastAssignmentChange.fromProject && (
+                <span className="toast-subtext">
+                  (from {lastAssignmentChange.fromProject})
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="toast-undo-btn"
+              onClick={handleUndoLastAssignment}
+              title="Undo"
+            >
+              <RotateCcw size={16} />
+            </button>
+            <button
+              type="button"
+              className="toast-close-btn"
+              onClick={handleCloseToast}
+              title="Close"
+            >
+              <X size={14} />
+            </button>
           </div>
         </div>
       )}
