@@ -3,8 +3,11 @@ import SimpleToggleLayout from "./components/Layout/SimpleToggleLayout";
 import type { Panel } from "./components/Layout/SimpleToggleLayout";
 import CSVUpload from "./components/CSVUpload";
 import StudentsPane from "./components/StudentsPane";
-import ProjectsPane, { MAX_STUDENTS_PER_PROJECT } from "./components/ProjectsPane";
+import ProjectsPane from "./components/ProjectsPane";
 import AnalysisPane from "./components/AnalysisPane";
+import { Download, Settings } from "lucide-react";
+import { autoAssign, type AutoFillMode } from "./utils/autoAssign";
+import { buildAssignmentsExport } from "./utils/exportXlsx";
 import "./components/Layout/MainApp.css";
 import "./components/AnalysisPane.css";
 
@@ -19,6 +22,9 @@ export default function MainApp() {
   const [projects, setProjects] = useState<string[]>([]);
   // Track assignments: project name -> array of student IDs
   const [projectAssignments, setProjectAssignments] = useState<Record<string, string[]>>({});
+  const [maxProjectSize, setMaxProjectSize] = useState(6);
+  const [autoFillMode, setAutoFillMode] = useState<AutoFillMode>("firstChoiceOnly");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleCSVUpload = (data: {
     students: Student[];
@@ -26,10 +32,12 @@ export default function MainApp() {
   }) => {
     setStudents(data.students);
     setProjects(data.projects);
-    // Initialize empty assignments for all projects
-    const initialAssignments: Record<string, string[]> = {};
-    data.projects.forEach((project) => {
-      initialAssignments[project] = [];
+    const initialAssignments = autoAssign({
+      mode: autoFillMode,
+      students: data.students,
+      projects: data.projects,
+      capacity: Math.max(1, maxProjectSize),
+      seed: 1,
     });
     setProjectAssignments(initialAssignments);
   };
@@ -53,7 +61,7 @@ export default function MainApp() {
 
       // Add to new project (only if not over capacity)
       const currentCount = (newAssignments[projectName] || []).length;
-      if (currentCount < MAX_STUDENTS_PER_PROJECT) {
+      if (currentCount < maxProjectSize) {
         if (!newAssignments[projectName]) {
           newAssignments[projectName] = [];
         }
@@ -78,7 +86,7 @@ export default function MainApp() {
     setProjectAssignments((prev) => {
       const newAssignments = { ...prev };
       const currentCount = (newAssignments[projectName] || []).length;
-      const availableSlots = MAX_STUDENTS_PER_PROJECT - currentCount;
+      const availableSlots = maxProjectSize - currentCount;
       
       if (availableSlots <= 0) return prev;
 
@@ -115,6 +123,33 @@ export default function MainApp() {
 
   const handleDragStart = () => {
     // Drag started - handled by browser drag API
+  };
+
+  const handleExportXlsx = async () => {
+    const { assignedRows, unassignedRows } = buildAssignmentsExport({
+      students,
+      projectAssignments,
+    });
+
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+
+    const assignedSheet = XLSX.utils.aoa_to_sheet([
+      ["Project", "Name", "ID"],
+      ...assignedRows,
+    ]);
+    XLSX.utils.book_append_sheet(wb, assignedSheet, "Assignments");
+
+    if (unassignedRows.length > 0) {
+      const unassignedSheet = XLSX.utils.aoa_to_sheet([
+        ["Name", "ID"],
+        ...unassignedRows,
+      ]);
+      XLSX.utils.book_append_sheet(wb, unassignedSheet, "Unassigned Students");
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `group-maker-assignments-${stamp}.xlsx`);
   };
 
   const panels: Panel[] = [
@@ -163,6 +198,7 @@ export default function MainApp() {
           onStudentRemove={handleStudentRemove}
           searchQuery={projectsSearchQuery}
           maxChoices={Math.max(...students.map((s) => s.choices.length), 0)}
+          maxStudentsPerProject={maxProjectSize}
         />
       ),
     },
@@ -184,13 +220,88 @@ export default function MainApp() {
     <div className="main-app">
       <header className="app-header">
         <h1 className="app-title">Group Maker</h1>
-        <div className="header-upload">
-          <CSVUpload onUpload={handleCSVUpload} />
+        <div className="header-actions">
+          <div className="header-upload">
+            <CSVUpload onUpload={handleCSVUpload} />
+          </div>
+          <button
+            className="settings-btn"
+            onClick={handleExportXlsx}
+            title="Export assignments to XLSX"
+            type="button"
+          >
+            <Download size={16} />
+          </button>
+          <button
+            className="settings-btn"
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+            type="button"
+          >
+            <Settings size={16} />
+          </button>
         </div>
       </header>
       <div className="app-content">
         <SimpleToggleLayout panels={panels} />
       </div>
+
+      {settingsOpen && (
+        <div className="settings-backdrop" onClick={() => setSettingsOpen(false)}>
+          <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-header">
+              <h2 className="settings-title">Settings</h2>
+              <button
+                className="settings-close"
+                onClick={() => setSettingsOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="settings-body">
+              <label className="settings-row">
+                <span className="settings-label">Max project size</span>
+                <input
+                  className="settings-input"
+                  type="number"
+                  min={1}
+                  value={maxProjectSize}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    setMaxProjectSize(Number.isFinite(next) ? Math.max(1, next) : 1);
+                  }}
+                />
+              </label>
+
+              <div className="settings-spacer" />
+
+              <div className="settings-row">
+                <div className="settings-row-left">
+                  <span className="settings-label">Auto-fill algorithm</span>
+                  <div className="settings-help">
+                    {autoFillMode === "minFillGreedyRepair"
+                      ? "Greedy + repair with a 60% minimum-fill rule: uses a subset of projects, seeds each used project to ≥60% full, then improves preference satisfaction with quick swaps."
+                      : autoFillMode === "firstChoiceOnly"
+                        ? "Simple: assigns each student to their 1st choice (if capacity allows). Everything else is left for manual fixes."
+                        : "No auto-fill: starts with all students unassigned."}
+                  </div>
+                </div>
+                <select
+                  className="settings-input settings-select"
+                  value={autoFillMode}
+                  onChange={(e) => setAutoFillMode(e.target.value as AutoFillMode)}
+                >
+                  <option value="none">No auto-fill</option>
+                  <option value="minFillGreedyRepair">Greedy + repair (min-fill)</option>
+                  <option value="firstChoiceOnly">Simple (1st choice only)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

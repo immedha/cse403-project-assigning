@@ -16,8 +16,14 @@ interface StudentsPaneProps {
   searchQuery: string;
 }
 
-export default function StudentsPane({ students, assignedStudentIds, projectAssignments, onDragStart, onUnassignedCountChange, searchQuery }: StudentsPaneProps) {
-
+export default function StudentsPane({
+  students,
+  assignedStudentIds,
+  projectAssignments,
+  onDragStart,
+  onUnassignedCountChange,
+  searchQuery,
+}: StudentsPaneProps) {
   const getStudentProject = (studentId: string): string | null => {
     for (const [project, studentIds] of Object.entries(projectAssignments)) {
       if (studentIds.includes(studentId)) {
@@ -32,22 +38,18 @@ export default function StudentsPane({ students, assignedStudentIds, projectAssi
   }, [students, assignedStudentIds]);
 
   useEffect(() => {
-    if (onUnassignedCountChange) {
-      onUnassignedCountChange(unassignedCount);
-    }
+    onUnassignedCountChange?.(unassignedCount);
   }, [unassignedCount, onUnassignedCountChange]);
 
   const displayedStudents = useMemo(() => {
-    // When not searching, only show unassigned students
-    // When searching, show all students (assigned and unassigned)
+    // When not searching, only show unassigned students.
+    // When searching, show all students (assigned and unassigned).
     let filtered = searchQuery.trim()
-      ? [...students] // Show all when searching
-      : students.filter((student) => !assignedStudentIds.has(student.id)); // Only unassigned when not searching
+      ? [...students]
+      : students.filter((student) => !assignedStudentIds.has(student.id));
 
-    // Sort alphabetically by name
     filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(
@@ -93,14 +95,11 @@ export default function StudentsPane({ students, assignedStudentIds, projectAssi
               )}
               {student.choices.length > 0 && (
                 <div className="student-preferences">
-                  {student.choices.slice(0, 3).map((choice, idx) => (
+                  {student.choices.map((choice, idx) => (
                     <span key={idx} className="preference-badge">
                       {idx + 1}. {choice}
                     </span>
                   ))}
-                  {student.choices.length > 3 && (
-                    <span className="preference-more">+{student.choices.length - 3}</span>
-                  )}
                 </div>
               )}
             </div>
@@ -110,3 +109,4 @@ export default function StudentsPane({ students, assignedStudentIds, projectAssi
     </div>
   );
 }
+

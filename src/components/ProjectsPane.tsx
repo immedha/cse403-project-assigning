@@ -1,7 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import "./ProjectsPane.css";
-
-export const MAX_STUDENTS_PER_PROJECT = 6;
 
 export type Student = {
   id: string;
@@ -17,6 +15,7 @@ interface ProjectsPaneProps {
   onStudentRemove: (studentId: string, projectName: string) => void;
   searchQuery: string;
   maxChoices: number;
+  maxStudentsPerProject: number;
 }
 
 export default function ProjectsPane({
@@ -27,7 +26,13 @@ export default function ProjectsPane({
   onStudentRemove,
   searchQuery,
   maxChoices,
+  maxStudentsPerProject,
 }: ProjectsPaneProps) {
+  const [studentTooltip, setStudentTooltip] = useState<{
+    x: number;
+    y: number;
+    student: Student;
+  } | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -93,8 +98,8 @@ export default function ProjectsPane({
           const projectStudents = studentIds
             .map((id) => students.find((s) => s.id === id))
             .filter((s): s is Student => Boolean(s));
-          const isFull = projectStudents.length >= MAX_STUDENTS_PER_PROJECT;
-          const isOverCapacity = projectStudents.length > MAX_STUDENTS_PER_PROJECT;
+          const isFull = projectStudents.length >= maxStudentsPerProject;
+          const isOverCapacity = projectStudents.length > maxStudentsPerProject;
 
           return (
             <div
@@ -107,7 +112,7 @@ export default function ProjectsPane({
               <div className="project-header">
                 <h4 className="project-name">{project}</h4>
                 <span className={`project-count ${isOverCapacity ? "over" : ""}`}>
-                  {projectStudents.length}/{MAX_STUDENTS_PER_PROJECT}
+                  {projectStudents.length}/{maxStudentsPerProject}
                   {isOverCapacity && " ⚠️"}
                 </span>
               </div>
@@ -122,6 +127,14 @@ export default function ProjectsPane({
                         key={student.id}
                         className="project-student"
                         draggable
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setStudentTooltip({
+                            x: e.clientX,
+                            y: e.clientY,
+                            student,
+                          });
+                        }}
                         onDragStart={(e) => {
                           e.dataTransfer.setData("text/plain", student.id);
                         }}
@@ -157,6 +170,32 @@ export default function ProjectsPane({
           })
         )}
       </div>
+      {studentTooltip && (
+        <>
+          <div
+            className="student-tooltip-backdrop"
+            onClick={() => setStudentTooltip(null)}
+          />
+          <div
+            className="student-tooltip"
+            style={{ top: studentTooltip.y + 8, left: studentTooltip.x + 8 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="student-tooltip-title">{studentTooltip.student.name} ({studentTooltip.student.id})</div>
+            <div className="student-tooltip-content">
+              {studentTooltip.student.choices.length > 0 ? (
+                studentTooltip.student.choices.map((c, i) => (
+                  <div key={i} className="student-tooltip-line">
+                    {i + 1}. {c}
+                  </div>
+                ))
+              ) : (
+                <div className="student-tooltip-line">No ranked choices</div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
