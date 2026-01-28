@@ -750,7 +750,7 @@ export default function MainApp() {
                 <div className="settings-row-left">
                   <span className="settings-label">Reset</span>
                   <div className="settings-help">
-                    Clears saved data from this browser (students, projects, assignments, and settings).
+                    Clears site data from browser LocalStorage.
                   </div>
                 </div>
                 <button
@@ -758,7 +758,7 @@ export default function MainApp() {
                   className="settings-danger-btn"
                   onClick={handleClearSavedData}
                 >
-                  Clear saved data
+                  Clear site data
                 </button>
               </div>
             </div>
