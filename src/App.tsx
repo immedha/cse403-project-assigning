@@ -441,9 +441,6 @@ export default function MainApp() {
     setProjectAssignments({});
     setStudentsSearchQuery("");
     setProjectsSearchQuery("");
-    setMaxProjectSize(6);
-    setAutoFillMode("firstChoiceOnly");
-    setAssignmentToastsEnabled(true);
     setLastAssignmentChange(null);
     setToastVisible(false);
     setSettingsOpen(false);
@@ -618,7 +615,7 @@ export default function MainApp() {
   return (
     <div className="main-app">
       <header className="app-header">
-        <h1 className="app-title">GroupMatch</h1>
+        <h1 className="app-title">ProjectMatcher</h1>
         <div className="header-actions">
           <div className="header-upload">
             <CSVUpload onUpload={handleCSVUpload} />

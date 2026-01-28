@@ -1,4 +1,4 @@
-# GroupMatch
+# ProjectMatcher
 
 A web application for assigning students to project groups with drag-and-drop, satisfaction-aware auto-fill algorithms, and rich analysis.
 
@@ -29,11 +29,12 @@ A web application for assigning students to project groups with drag-and-drop, s
 The application expects a header row and at least these columns (names are matched case-insensitively):
 
 - **Required**
+
   - `Name` – student name (or equivalent like `Student Name`)
   - `Id` – unique student identifier (NetID, SID, etc.)
   - One or more `Choice N` columns (`Choice 1`, `Choice 2`, `Choice #3`, `choice1`, …).
-
 - **Optional**
+
   - `Assigned Project` – if present, students are initially assigned to the given project names.
 
 All distinct project names appearing in any `Choice` column or in `Assigned Project` are treated as projects in the app.
@@ -133,3 +134,4 @@ src/
 ## License
 
 Private project
+```
