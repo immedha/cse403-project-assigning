@@ -19,7 +19,9 @@
   font-size: 0.75rem;
   font-weight: 500;
   color: #111827;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 240px;
+  width: fit-content;
 }
 
 .csv-upload-button:hover {
@@ -101,6 +103,103 @@
   font-size: 0.6875rem;
   color: #d1d5db;
   font-style: italic;
+}
+
+.upload-info-btn {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.125rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 0.25rem;
+}
+
+.upload-info-btn:hover {
+  color: #3b82f6;
+}
+
+.upload-info-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #1f2937;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  min-width: 240px;
+  max-width: 320px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+.upload-info-tooltip::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  right: 12px;
+  border: 6px solid transparent;
+  border-bottom-color: #1f2937;
+}
+
+.upload-info-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.upload-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.upload-info-content div {
+  font-size: 0.75rem;
+}
+
+.upload-info-content strong {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.upload-info-note {
+  margin-top: 0.25rem;
+  padding-top: 0.375rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.6875rem;
+  color: #d1d5db;
+  font-style: italic;
+}
+
+.upload-info-example {
+  margin-top: 0.375rem;
+  padding-top: 0.375rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.upload-info-example > div:first-child {
+  font-size: 0.6875rem;
+  color: #d1d5db;
+  margin-bottom: 0.25rem;
+}
+
+.upload-info-example pre {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-family: ui-monospace, monospace;
+  color: #e5e7eb;
+  white-space: pre;
+  overflow-x: auto;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.375rem;
+  border-radius: 4px;
 }
 
 .upload-error-inline {

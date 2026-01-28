@@ -87,6 +87,9 @@ export default function ProjectsPane({
 
   return (
     <div className="projects-pane">
+      <p className="projects-hint">
+        <em>Right-click a student to see their detailed rankings.</em>
+      </p>
       <div className="projects-grid">
         {filteredProjects.length === 0 ? (
           <div className="projects-pane-empty">

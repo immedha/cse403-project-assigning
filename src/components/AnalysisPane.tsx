@@ -179,7 +179,7 @@ export default function AnalysisPane({
           <Frown className="satisfaction-icon satisfaction-red" size={16} />
           <span className="satisfaction-value satisfaction-red">{satisfactionStats.thirdPlus}%</span>
           <span className="satisfaction-total">
-            out of {satisfactionStats.total} student{satisfactionStats.total !== 1 ? "s" : ""}
+            satisfaction stats (out of {satisfactionStats.total} assigned students)
           </span>
         </div>
       )}
@@ -193,11 +193,18 @@ export default function AnalysisPane({
             element={hoveredTooltip.element}
             students={hoveredTooltip.students}
             project={hoveredTooltip.project}
+            choice={hoveredTooltip.choice}
             onAddAll={onAddStudentsToProject}
             onClose={() => setHoveredTooltip(null)}
           />
         </>
       )}
+      <div className="analysis-table-title">
+        Number of (unassigned) students who ranked each project as 1st, 2nd, 3rd, etc.
+      </div>
+      <div className="analysis-hint">
+        <em>Right-click a value in the table to see the students.</em>
+      </div>
       <div className="stats-table-wrapper">
         <div className="stats-table">
         <div
@@ -217,14 +224,22 @@ export default function AnalysisPane({
                   isSelected ? "choice-header-btn-selected" : ""
                 }`}
                 onClick={() => setTotalUpToRank(totalUpToRank === rank ? null : rank)}
-                title={`Click to sum total up to ${getOrdinal(rank)} choice`}
+                title={`# of unassigned students who ranked this project as their ${getOrdinal(
+                  rank
+                )} choice. Click to change the Total calculation.`}
+                aria-label={`Unassigned students who ranked this project as their ${getOrdinal(
+                  rank
+                )} choice`}
               >
                 {getOrdinal(rank)}
               </button>
             );
           })}
           <div className="stat-col total-col">
-            Total
+            <div>Total</div>
+            {totalUpToRank ? (
+              <div className="total-sublabel">up to {getOrdinal(totalUpToRank)}</div>
+            ) : null}
           </div>
         </div>
         {sortedStats.map((stat) => {
@@ -245,20 +260,19 @@ export default function AnalysisPane({
               {choiceRanks.map((rank) => {
                 const count = stat.choiceCounts.get(rank) || 0;
                 const students = stat.choiceStudents.get(rank) || [];
-                const hasValue = count > 0;
                 return (
                   <div
                     key={rank}
-                    className={`stat-col ${hasValue ? "stat-col-hoverable" : ""}`}
-                    onContextMenu={hasValue ? (e) => {
+                    className="stat-col stat-col-hoverable"
+                    onContextMenu={(e) => {
                       e.preventDefault();
                       setHoveredTooltip({
                         project: stat.project,
                         choice: rank,
-                        students,
+                        students: count > 0 ? students : [],
                         element: e.currentTarget,
                       });
-                    } : undefined}
+                    }}
                   >
                     {count}
                   </div>

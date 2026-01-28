@@ -5,6 +5,12 @@
   overflow: hidden;
 }
 
+.projects-hint {
+  font-size: 0.7rem;
+  color: #6b7280;
+  margin: 0.125rem 0.75rem 0.25rem;
+}
+
 .projects-grid {
   flex: 1;
   overflow-y: auto;

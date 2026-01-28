@@ -93,12 +93,13 @@ export default function MainApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [lastAssignmentChange, setLastAssignmentChange] = useState<{
-    studentId: string;
-    studentName: string;
+    studentIds: string[];
+    studentNames: string[];
     fromProject: string | null;
     toProject: string | null;
   } | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const handleCSVUpload = (data: {
     students: Student[];
@@ -162,8 +163,8 @@ export default function MainApp() {
         if (assignmentToastsEnabled) {
           const student = students.find((s) => s.id === studentId);
           setLastAssignmentChange({
-            studentId,
-            studentName: student?.name ?? "Student",
+            studentIds: [studentId],
+            studentNames: [student?.name ?? "Student"],
             fromProject,
             toProject: projectName,
           });
@@ -185,8 +186,8 @@ export default function MainApp() {
       if (assignmentToastsEnabled) {
         const student = students.find((s) => s.id === studentId);
         setLastAssignmentChange({
-          studentId,
-          studentName: student?.name ?? "Student",
+          studentIds: [studentId],
+          studentNames: [student?.name ?? "Student"],
           fromProject: projectName,
           toProject: null,
         });
@@ -226,12 +227,13 @@ export default function MainApp() {
         }
         newAssignments[projectName] = [...newAssignments[projectName], ...studentIdsToAdd];
 
-        if (assignmentToastsEnabled && studentIdsToAdd.length === 1) {
-          const studentId = studentIdsToAdd[0];
-          const student = students.find((s) => s.id === studentId);
+        if (assignmentToastsEnabled && studentIdsToAdd.length > 0) {
+          const names = studentIdsToAdd
+            .map((id) => students.find((s) => s.id === id)?.name ?? "Student")
+            .filter(Boolean);
           setLastAssignmentChange({
-            studentId,
-            studentName: student?.name ?? "Student",
+            studentIds: studentIdsToAdd,
+            studentNames: names,
             fromProject: null,
             toProject: projectName,
           });
@@ -296,18 +298,20 @@ export default function MainApp() {
 
   const handleUndoLastAssignment = () => {
     if (!lastAssignmentChange) return;
-    const { studentId, fromProject, toProject } = lastAssignmentChange;
+    const { studentIds, fromProject, toProject } = lastAssignmentChange;
     setProjectAssignments((prev) => {
       const next = { ...prev };
-      // Remove from current project if needed
-      if (toProject && next[toProject]) {
-        next[toProject] = next[toProject].filter((id) => id !== studentId);
-      }
-      // Restore to previous project if there was one
-      if (fromProject) {
-        const arr = next[fromProject] ?? [];
-        if (!arr.includes(studentId)) {
-          next[fromProject] = [...arr, studentId];
+      for (const studentId of studentIds) {
+        // Remove from current project if needed
+        if (toProject && next[toProject]) {
+          next[toProject] = next[toProject].filter((id) => id !== studentId);
+        }
+        // Restore to previous project if there was one
+        if (fromProject) {
+          const arr = next[fromProject] ?? [];
+          if (!arr.includes(studentId)) {
+            next[fromProject] = [...arr, studentId];
+          }
         }
       }
       return next;
@@ -319,12 +323,29 @@ export default function MainApp() {
     setToastVisible(false);
   };
 
-  // Auto-dismiss toast after 4 seconds
+  const closeExportMenu = () => setExportMenuOpen(false);
+
+  // Close export menu on outside click / escape
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeExportMenu();
+    };
+    const onMouseDown = () => closeExportMenu();
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("mousedown", onMouseDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [exportMenuOpen]);
+
+  // Auto-dismiss toast after timeout
   useEffect(() => {
     if (!toastVisible || !assignmentToastsEnabled) return;
     const timer = setTimeout(() => {
       setToastVisible(false);
-    }, 4000);
+    }, 3000);
     return () => clearTimeout(timer);
   }, [toastVisible, assignmentToastsEnabled]);
 
@@ -342,6 +363,34 @@ export default function MainApp() {
 
     const stamp = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(wb, `group-maker-assignments-${stamp}.xlsx`);
+  };
+
+  const handleExportCsv = () => {
+    const { header, rows } = buildRoundTripExport({
+      students,
+      projectAssignments,
+    });
+
+    const escapeCsv = (value: string) => {
+      const v = value ?? "";
+      if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+      return v;
+    };
+
+    const csv = [header, ...rows]
+      .map((row) => row.map((c) => escapeCsv(String(c ?? ""))).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `group-maker-assignments-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const panels: Panel[] = [
@@ -416,14 +465,44 @@ export default function MainApp() {
           <div className="header-upload">
             <CSVUpload onUpload={handleCSVUpload} />
           </div>
-          <button
-            className="settings-btn"
-            onClick={handleExportXlsx}
-            title="Export assignments to XLSX"
-            type="button"
-          >
-            <Download size={16} />
-          </button>
+          <div className="export-menu-wrapper" onMouseDown={(e) => e.stopPropagation()}>
+            <button
+              className="settings-btn"
+              onClick={() => setExportMenuOpen((v) => !v)}
+              title="Export"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={exportMenuOpen}
+            >
+              <Download size={16} />
+            </button>
+            {exportMenuOpen && (
+              <div className="export-menu" role="menu">
+                <button
+                  type="button"
+                  className="export-menu-item"
+                  role="menuitem"
+                  onClick={() => {
+                    handleExportCsv();
+                    closeExportMenu();
+                  }}
+                >
+                  Export csv
+                </button>
+                <button
+                  type="button"
+                  className="export-menu-item"
+                  role="menuitem"
+                  onClick={() => {
+                    void handleExportXlsx();
+                    closeExportMenu();
+                  }}
+                >
+                  Export xlsx
+                </button>
+              </div>
+            )}
+          </div>
           <button
             className="settings-btn"
             onClick={() => setSettingsOpen(true)}
@@ -476,7 +555,7 @@ export default function MainApp() {
                     {autoFillMode === "minFillGreedyRepair"
                       ? "Greedy + repair with a 60% minimum-fill rule: uses a subset of projects, seeds each used project to ≥60% full, then improves preference satisfaction with quick swaps."
                       : autoFillMode === "firstChoiceOnly"
-                        ? "Simple: assigns each student to their 1st choice (if capacity allows). Everything else is left for manual fixes."
+                        ? "Simple algo: assigns each student to their 1st choice (if capacity allows). Everything else is left for manual fixes."
                         : "No auto-fill: starts with all students unassigned."}
                   </div>
                 </div>
@@ -495,9 +574,9 @@ export default function MainApp() {
 
               <div className="settings-row">
                 <div className="settings-row-left">
-                  <span className="settings-label">Assignment toasts</span>
+                  <span className="settings-label">Toast notifications</span>
                   <div className="settings-help">
-                    Show a small notification with undo whenever a student is moved between projects or unassigned.
+                    Show a small notification with an Undo option whenever a project assignment changes.
                   </div>
                 </div>
                 <label className="settings-toggle">
@@ -531,11 +610,14 @@ export default function MainApp() {
           </div>
         </div>
       )}
+
       {assignmentToastsEnabled && toastVisible && lastAssignmentChange && (
         <div className="toast-container">
           <div className="toast">
             <div className="toast-text">
-              <span className="toast-student">{lastAssignmentChange.studentName}</span>
+              <span className="toast-student">
+                {lastAssignmentChange.studentNames.join(", ")}
+              </span>
               <span className="toast-arrow">→</span>
               <span className="toast-project">
                 {lastAssignmentChange.toProject ?? "Unassigned"}

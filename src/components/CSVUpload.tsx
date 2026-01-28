@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import Papa from "papaparse";
+import { HelpCircle } from "lucide-react";
 import "./CSVUpload.css";
 
 interface CSVUploadProps {
@@ -17,7 +18,9 @@ interface CSVUploadProps {
 export default function CSVUpload({ onUpload }: CSVUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const infoRef = useRef<HTMLButtonElement>(null);
 
   const handleFile = (file: File) => {
     if (!file.name.endsWith(".csv")) {
@@ -190,10 +193,39 @@ export default function CSVUpload({ onUpload }: CSVUploadProps) {
         />
         <span className="upload-icon">📄</span>
         <span className="upload-label">
-          Upload CSV (Columns: "Name", "Id", "Choice 1", "Choice 2", etc, <br />
-          Optional: "Assigned Project")
+          Upload CSV
         </span>
+        <button
+          ref={infoRef}
+          type="button"
+          className="upload-info-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowInfoTooltip(!showInfoTooltip);
+          }}
+          onBlur={() => setTimeout(() => setShowInfoTooltip(false), 150)}
+          title="CSV format help"
+        >
+          <HelpCircle size={14} />
+        </button>
       </div>
+      {showInfoTooltip && (
+        <div className="upload-info-tooltip">
+          <div className="upload-info-title">CSV Format</div>
+          <div className="upload-info-content">
+            <div><strong>Required Columns:</strong> Name, Id, Choice 1, Choice 2, ...</div>
+            <div><strong>Optional Column:</strong> Assigned Project (initializes students' assignments with this project, skips custom auto-fill algorithm)</div>
+            <div className="upload-info-note">Columns can be in any order</div>
+            <div className="upload-info-example">
+              <div>Example:</div>
+              <pre>Name,Id,Choice 1,Choice 2<br/>
+Alice,alice123,Project A,Project B<br/>
+Bob, bob123, Project B, Project A
+</pre>
+            </div>
+          </div>
+        </div>
+      )}
       {error && <div className="upload-error-inline">{error}</div>}
     </div>
   );
