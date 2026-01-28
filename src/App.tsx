@@ -5,7 +5,7 @@ import CSVUpload from "./components/CSVUpload";
 import StudentsPane from "./components/StudentsPane";
 import ProjectsPane from "./components/ProjectsPane";
 import AnalysisPane from "./components/AnalysisPane";
-import { Download, Settings, X, RotateCcw } from "lucide-react";
+import { Download, Settings, X, RotateCcw, HatGlasses } from "lucide-react";
 import { autoAssign, type AutoFillMode } from "./utils/autoAssign";
 import { buildRoundTripExport } from "./utils/exportXlsx";
 import { computeTeamsFromCsvStudents } from "./utils/teams";
@@ -615,7 +615,12 @@ export default function MainApp() {
   return (
     <div className="main-app">
       <header className="app-header">
-        <h1 className="app-title">ProjectMatcher</h1>
+        <div className="app-brand">
+          <HatGlasses className="app-logo" size={24} aria-hidden="true" />
+          <div className="app-title-group">
+            <h1 className="app-title">ProjectMatcher</h1>
+          </div>
+        </div>
         <div className="header-actions">
           <div className="header-upload">
             <CSVUpload onUpload={handleCSVUpload} />
