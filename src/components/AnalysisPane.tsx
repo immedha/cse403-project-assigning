@@ -144,6 +144,26 @@ export default function AnalysisPane({
     return entries;
   }, [teamsInfo]);
 
+  const recomputeTeamsScrollHint = () => {
+    const el = teamsScrollRef.current;
+    if (!el) return;
+    const canScroll = el.scrollHeight > el.clientHeight + 1;
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    setTeamsCanScrollDown(canScroll && !atBottom);
+  };
+
+  useEffect(() => {
+    recomputeTeamsScrollHint();
+    // Recompute after paint and on resize; scrollHeight can change with fonts/layout.
+    const t = window.setTimeout(recomputeTeamsScrollHint, 0);
+    window.addEventListener("resize", recomputeTeamsScrollHint);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", recomputeTeamsScrollHint);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTeamDetails, teamsInfo.teams.length, unenforceableEntries.length]);
+
   if (students.length === 0) {
     return (
       <div className="analysis-pane">
@@ -185,30 +205,6 @@ export default function AnalysisPane({
     ...projectStats.map((s) => s.choiceCounts.get(1) || 0),
     0
   );
-
-  const recomputeTeamsScrollHint = () => {
-    const el = teamsScrollRef.current;
-    if (!el) return;
-    const canScroll = el.scrollHeight > el.clientHeight + 1;
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
-    setTeamsCanScrollDown(canScroll && !atBottom);
-  };
-
-  useEffect(() => {
-    recomputeTeamsScrollHint();
-    // Recompute after paint and on resize; scrollHeight can change with fonts/layout.
-    const t = window.setTimeout(recomputeTeamsScrollHint, 0);
-    window.addEventListener("resize", recomputeTeamsScrollHint);
-    return () => {
-      window.clearTimeout(t);
-      window.removeEventListener("resize", recomputeTeamsScrollHint);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    showTeamDetails,
-    teamsInfo.teams.length,
-    unenforceableEntries.length,
-  ]);
 
   return (
     <div className="analysis-pane">
