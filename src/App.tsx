@@ -147,7 +147,7 @@ export default function MainApp() {
     Number.isFinite(loaded?.maxProjectSize) ? Math.max(1, loaded!.maxProjectSize) : 6
   );
   const [autoFillMode, setAutoFillMode] = useState<AutoFillMode>(
-    (loaded?.autoFillMode as AutoFillMode) ?? "firstChoiceOnly"
+    (loaded?.autoFillMode as AutoFillMode) ?? "none"
   );
   const [assignmentToastsEnabled, setAssignmentToastsEnabled] = useState(
     loaded?.assignmentToastsEnabled ?? true
@@ -353,15 +353,10 @@ export default function MainApp() {
   const handleAddStudentsToProject = (projectName: string, studentNames: string[]) => {
     setProjectAssignments((prev) => {
       const newAssignments = { ...prev };
-      const currentCount = (newAssignments[projectName] || []).length;
-      const availableSlots = maxProjectSize - currentCount;
-      
-      if (availableSlots <= 0) return prev;
 
-      // Find student IDs by name
+      // Find student IDs by name (no max-project-size limit for "Assign All")
       const studentIdsToAdd: string[] = [];
       for (const studentName of studentNames) {
-        if (studentIdsToAdd.length >= availableSlots) break;
         const student = students.find((s) => s.name === studentName);
         if (student) {
           // Check if student is already assigned
